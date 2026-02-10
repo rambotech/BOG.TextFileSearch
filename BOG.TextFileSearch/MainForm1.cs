@@ -10,34 +10,44 @@ namespace BOG.TextFileSearch
 {
 	public partial class MainForm : Form
 	{
-		private const string FormStateFileName = "state.bin";
-		private const string ConfigEditorFileName = "config_editor.txt";
+		private const string FormStateFileName = "state_persist.json";
+		private const string ConfigEditorFileName = "config.json";
+
 		private const string ResultsFoundFormat = "Occurrences found: {0}. Showing {1} lines.";
+
 		private const string CopiedLineFormat = "File: {0}\nLine: {1}\nContent: {2}";
 		private const string EmptyFieldAlertFormat = "The {0} field must have a value.";
 		private const string ResultsTimeFormat = "Results returned in: {0}";
 		private const string ErrorMessageFormat = "An error occurred while processing your search. Error: {0}";
 		private const string RegexTestString = "S";
 		private const int MaxLineSize = 250;
-		private const int MaxItemsInlvwFound = 500;
+		private const int MaxItemsInlvwFound = 0;
 		private const int NumberOfBreakLineCharsToSkip = 2;
 
 		private readonly Stopwatch Stopwatch = new();
 
-		private string TextEditorProgramName { get; set; }
-		private string TextEditorPath { get; set; }
-		private string TextEditorCommandLineArgumentsFormat { get; set; }
-		private string TextEditorProgramNameWithExtension { get; set; }
-
 		private string AppDataFolderPath = string.Empty;
+
 		private string FormStateFile = string.Empty;
 		private string ConfigEditorFile = string.Empty;
+
+		private string FormStateFileHA256Hash = string.Empty;
+		private string ConfigEditorFileHA256Hash = string.Empty;
+
+		private bool FormStateChanged = false;
+		private bool ConfigChanged = false;
+
+		private FormState _FormStateObj = FormStateFactory.CreateDefaultObject();
+		private ConfigOptions _ConfigOptionsObj = ConfigOptionsFactory.CreateDefaultObject();
 
 		public MainForm()
 		{
 			InitializeComponent();
 
-			AppDataFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BOG.TextFileSearch");
+			AppDataFolderPath = Path.Combine(
+				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+				"Bits Of Genius",
+				"BOG.TextFileSearch");
 			if (!Directory.Exists(AppDataFolderPath))
 			{
 				try
@@ -50,13 +60,16 @@ namespace BOG.TextFileSearch
 						DetailedException.WithMachineContent(
 							ref ex,
 							$"An error occurred while trying to create the application data folder:  {AppDataFolderPath}",
-							"Can't not start this application"
-						)
+							"Can't not start the application"
+						),
+						"Folder not created",
+						MessageBoxButtons.OK,
+						MessageBoxIcon.Error
 					);
 				}
 			}
-			FormStateFile = string.Format(FormStateFileName, AppDataFolderPath);
-			ConfigEditorFile = string.Format(ConfigEditorFileName, AppDataFolderPath);
+			FormStateFile = Path.Combine(AppDataFolderPath, FormStateFileName);
+			ConfigEditorFile = Path.Combine(AppDataFolderPath, ConfigEditorFileName);
 		}
 
 		private async void Search(object sender, EventArgs e)
@@ -108,7 +121,7 @@ namespace BOG.TextFileSearch
 
 		public static bool TextBoxValidate(TextBox element)
 		{
-			if (!string.IsNullOrEmpty(element.Text) && !string.IsNullOrWhiteSpace(element.Text))
+			if (string.IsNullOrEmpty(element.Text) || string.IsNullOrWhiteSpace(element.Text))
 			{
 				MessageBox.Show(
 				string.Format(EmptyFieldAlertFormat, element.Tag),
@@ -125,7 +138,8 @@ namespace BOG.TextFileSearch
 		{
 			lvwFound.Items.Clear();
 			lvwErrors.Items.Clear();
-			toolStripStatusLabel1.Text = $"Searching ... {folder}";
+			this.Refresh();
+			toolStripStatusLabel1.Text = $"Loading file list ... {folder}";
 			this.statusStrip1.Refresh();
 
 			int totalOccurrences = 0;
@@ -139,9 +153,9 @@ namespace BOG.TextFileSearch
 				Stopwatch.Start();
 
 				Dictionary<string, FileOccurrence> fileSearchResults = new();
-				Dictionary<string, FileOccurrence> fileContents = new();
+				// Dictionary<string, FileOccurrence> fileContents = new();
 
-				string[] filePatterns = CleanSemiColonString(txtFolder.Text).Split(';');
+				string[] filePatterns = CleanSemiColonString(txtFilePatterns.Text).Split(';');
 
 				string ignoredDirectories =
 					string.Join("|", CleanSemiColonString(txtIgnoreFolders.Text).Split(';'));
@@ -170,9 +184,9 @@ namespace BOG.TextFileSearch
 							Error = ex.InnerException?.Message ?? ex.Message
 						});
 					}
+					toolStripStatusLabel1.Text = $"Loading file list ... {pattern}: {allFileNames.Count} / {listOfErrors.Count}";
+					this.statusStrip1.Refresh();
 				}
-
-				List<int> indexes = new();
 
 				foreach (string filePath in allFileNames)
 				{
@@ -180,30 +194,32 @@ namespace BOG.TextFileSearch
 						continue;
 
 					string fileContent = await File.ReadAllTextAsync(filePath);
-					if (indexes.Count > 0) indexes.Clear();
+					List<int> indexes = new();
 					if (chkSearchAsRegex.Checked)
 					{
 						MatchCollection matches = Regex.Matches(fileContent, txtSearchPattern.Text);
 						for (var index = 0; index < matches.Count; index++)
 						{
-							indexes.Add(matches.it);
+							indexes.Add(matches[index].Index);
 						}
 					}
 					else
 					{
-						if (indexes.Count > 0) indexes.Clear();
-						occurrencesInFile = 0;
 						var offset = 0;
 						while ((offset = fileContent.IndexOf(search, offset, StringComparison.OrdinalIgnoreCase)) != -1)
 						{
-							occurrencesInFile++;
 							indexes.Add(offset);
 							offset += search.Length;
 						}
 					}
-					totalOccurrences += occurrencesInFile;
+					totalOccurrences += indexes.Count;
 
-					fileContents.Add(filePath, new FileOccurrence(fileContent, indexes));
+					if (indexes.Count > 0)
+					{
+						fileSearchResults.Add(filePath, new FileOccurrence(fileContent, indexes));
+						toolStripStatusLabel1.Text = $"Matching file list ... {filePath}";
+						this.statusStrip1.Refresh();
+					}
 				}
 
 				foreach (KeyValuePair<string, FileOccurrence> file in fileSearchResults)
@@ -217,7 +233,7 @@ namespace BOG.TextFileSearch
 
 					foreach (int idx in file.Value.MatchIndexes)
 					{
-						if (listOfFileMatches.Count == MaxItemsInlvwFound)
+						if (MaxItemsInlvwFound > 0 && listOfFileMatches.Count > MaxItemsInlvwFound)
 						{
 							reachedLimit = true;
 							break;
@@ -256,70 +272,13 @@ namespace BOG.TextFileSearch
 				UpdatelvwFound(listOfFileMatches);
 
 				Stopwatch.Stop();
-				UpdateResultsReturnedLabelWithStopwatchElapsedTime();
 
 				lvwFound.AutoResizeColumn(0, ColumnHeaderAutoResizeStyle.HeaderSize);
 				lvwFound.AutoResizeColumn(1, ColumnHeaderAutoResizeStyle.HeaderSize);
 
-				SearchingLabel.Visible = false;
-
-				ResultsFoundLabel.Text =
-					string.Format(ResultsFoundFormat, totalOccurrences, lvwFound.Items.Count.ToString());
-
-				ResultsFoundLabel.Visible = true;
-				ResultsReturnedLabel.Visible = true;
+				toolStripStatusLabel1.Text = $"Done ... {string.Format(ResultsFoundFormat, totalOccurrences, lvwFound.Items.Count.ToString())} ... {UpdateResultsReturnedLabelWithStopwatchElapsedTime()}";
+				this.statusStrip1.Refresh();
 			}
-		}
-
-		private async Task<(Dictionary<string, FileOccurrence>, int)> GetFileContents(string path, string searchPattern)
-		{
-			Dictionary<string, FileOccurrence> fileContents = new();
-
-			string[] filePatterns = CleanSemiColonString(txtFolder.Text).Split(';');
-
-			string ignoredDirectories =
-				string.Join("|", CleanSemiColonString(txtIgnoreFolders.Text).Split(';'));
-
-			List<string> allFileNames = new();
-
-			foreach (string pattern in filePatterns)
-			{
-				allFileNames.AddRange(
-					Directory.GetFiles(
-						path,
-						pattern,
-						chkRecurse.Checked ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly
-					)
-				);
-			}
-
-			int totalOccurrences = 0;
-
-			foreach (string filePath in allFileNames)
-			{
-				if (ContainsIgnoredDirectories(filePath, ignoredDirectories) || string.IsNullOrEmpty(filePath))
-					continue;
-
-				string fileContent = await File.ReadAllTextAsync(filePath);
-
-				MatchCollection matches = Regex.Matches(fileContent, regexPattern);
-
-				totalOccurrences += matches.Count;
-
-				if (matches.Count == 0)
-					continue;
-
-				List<int> indexes = new();
-
-				foreach (Match match in matches)
-				{
-					indexes.Add(match.Index);
-				}
-
-				fileContents.Add(filePath, new FileOccurrence(fileContent, indexes));
-			}
-
-			return (fileContents, totalOccurrences);
 		}
 
 		public static bool ContainsIgnoredDirectories(string filePath, string ignoredDirectories)
@@ -375,9 +334,10 @@ namespace BOG.TextFileSearch
 			}
 		}
 
-		private void UpdateResultsReturnedLabelWithStopwatchElapsedTime()
-			=> ResultsReturnedLabel.Text =
-				string.Format(ResultsTimeFormat, Stopwatch.Elapsed.ToString(@"hh\:mm\:ss"));
+		private string UpdateResultsReturnedLabelWithStopwatchElapsedTime()
+		{
+			return string.Format(ResultsTimeFormat, Stopwatch.Elapsed.ToString(@"hh\:mm\:ss"));
+		}
 
 		private void UpdatelvwFound(List<FileMatchInformation> listLineNumberAndContent)
 		{
@@ -416,48 +376,148 @@ namespace BOG.TextFileSearch
 
 			if (File.Exists(ConfigEditorFileName))
 			{
-				string[] configFileOptions;
-				string configFileContent = await File.ReadAllTextAsync(ConfigEditorFileName);
-
-				if (!string.IsNullOrWhiteSpace(configFileContent))
-				{
-					// NOTE(Ruan): for now, only Windows has this type of line break.
-					// It might change for other operating systems.
-					configFileOptions = configFileContent.Split(Environment.NewLine);
-
-					if (configFileOptions.Length >= 4)
-					{
-						TextEditorProgramName = configFileOptions[0].Replace("TextEditorProgramName=", "");
-						TextEditorPath = configFileOptions[1].Replace("TextEditorPath=", "");
-						TextEditorCommandLineArgumentsFormat = configFileOptions[2].Replace("CommandLineArguments=", "");
-						TextEditorProgramNameWithExtension = configFileOptions[3].Replace("TextEditorProgramNameWithExtension=", "");
-					}
-				}
-
-				AddToolStripMenuItemToContextMenuStrip($"Open in {TextEditorProgramName}", OpenInProgram_Click);
+				LoadConfigOptions();
 			}
+			else
+			{
+				SaveConfigOptions();
+			}
+			//			AddToolStripMenuItemToContextMenuStrip($"Open in {_ConfigOptionsObj.EditorPrograms[0].EditorName}", OpenInProgram_Click);
 
 			AddToolStripMenuItemToContextMenuStrip("Copy File Path", CopyFilePathToClipboard_Click);
 			AddToolStripMenuItemToContextMenuStrip("Copy Formatted", CopyFormattedContentToClipboard_Click);
 
-			if (!File.Exists(FormStateFileName))
+			if (File.Exists(FormStateFileName))
 			{
-				return;
+				SaveFormState();
 			}
-			LoadStateFromFile();
+			else
+			{
+				LoadFormState();
+			}
 		}
 
-		private void LoadStateFromFile()
+		private void LoadConfigOptions()
 		{
-			using Stream bytesFromStateFile = File.OpenRead(FormStateFileName);
-			try
+			if (File.Exists(ConfigEditorFileName))
 			{
-				FormState? formState = JsonSerializer.Deserialize<FormState>(bytesFromStateFile);
+				_ConfigOptionsObj = ObjectJsonSerializer<ConfigOptions>.LoadDocumentFormat(ConfigEditorFileName);
+			}
+		}
 
-				if (formState == null)
+		private void SaveConfigOptions()
+		{
+			ObjectJsonSerializer<ConfigOptions>.SaveDocumentFormat(_ConfigOptionsObj, ConfigEditorFileName, true);
+		}
+
+		private void LoadFormState()
+		{
+			if (!File.Exists(FormStateFile))
+			{
+				_FormStateObj = ObjectJsonSerializer<FormState>.LoadDocumentFormat(FormStateFile);
+			}
+		}
+		private void SaveFormState()
+		{
+			ObjectJsonSerializer<FormState>.SaveDocumentFormat(_FormStateObj, FormStateFile, true);
+		}
+
+		private void SetFormFromState()
+		{
+			SetFormFromState(_FormStateObj.ActiveSearchMetric);
+		}
+
+		// Puts the values of the selected searchMetric object into the form fields.
+		// If the name is not found, an error message is shown.
+		private void SetFormFromState(string searchMetricName)
+		{
+			if (_FormStateObj.SearchMetricList.Keys.Contains(searchMetricName))
+			{
+				txtFolder.Text = _FormStateObj.SearchMetricList[searchMetricName].Folder;
+				chkRecurse.Checked = _FormStateObj.SearchMetricList[searchMetricName].IncludeSubfolders;
+				chkIncludeHidden.Checked = _FormStateObj.SearchMetricList[searchMetricName].IncludeHidden;
+				chkIncludeSystem.Checked = _FormStateObj.SearchMetricList[searchMetricName].IncludeSystem;
+				txtIgnoreFolders.Text = _FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders;
+				txtFilePatterns.Text = _FormStateObj.SearchMetricList[searchMetricName].FilePatterns;
+				txtSearchPattern.Text = _FormStateObj.SearchMetricList[searchMetricName].SearchText;
+				chkSearchAsRegex.Checked = _FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex;
+
+				_FormStateObj.ActiveSearchMetric = searchMetricName;
+			}
+			else
+			{
+				MessageBox.Show($"The search metric configuration with name {searchMetricName} could not be found.", "Error");
+			}
+		}
+
+		// Puts the values in the form of the selected searchMetric into the form object.
+		// If the name is not found, an error message is shown.
+		private void SetStateFromForm(string searchMetricName)
+		{
+			if (_FormStateObj.SearchMetricList.Keys.Contains(searchMetricName))
+			{
+				_FormStateObj.SearchMetricList[searchMetricName].Folder = txtFolder.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].IncludeSubfolders = chkRecurse.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].IncludeHidden = chkIncludeHidden.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].IncludeSystem = chkIncludeSystem.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders = txtIgnoreFolders.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].FilePatterns = txtFilePatterns.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].SearchText = txtSearchPattern.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
+
+				_FormStateObj.ActiveSearchMetric = searchMetricName;
+			}
+			else
+			{
+				MessageBox.Show(
+					$"The search metric configuration with name {searchMetricName} could not be found",
+					"Error",
+					MessageBoxButtons.OK,
+					MessageBoxIcon.Error);
+			}
+		}
+
+		private void SaveStateOfForm()
+		{
+			SaveStateOfForm(_FormStateObj.ActiveSearchMetric);
+		}
+
+		private void SaveStateOfForm(string searchMetricName)
+		{
+			if (_FormStateObj.SearchMetricList.Keys.Contains(searchMetricName))
+			{
+				_FormStateObj.SearchMetricList[searchMetricName].Folder = txtFolder.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].IncludeSubfolders = chkRecurse.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].IncludeHidden = chkIncludeHidden.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].IncludeSystem = chkIncludeSystem.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders = txtIgnoreFolders.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].FilePatterns = txtFilePatterns.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].SearchText = txtSearchPattern.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
+				_FormStateObj.ActiveSearchMetric = searchMetricName;
+				_FormStateObj.UpdatedAtUtc = DateTime.UtcNow;
+			}
+			else
+			{
+				var o = new SearchMetric
 				{
-					return;
-				}
+					Folder = txtFolder.Text,
+					IncludeSubfolders = chkRecurse.Checked,
+					IncludeHidden = chkIncludeHidden.Checked,
+					IncludeSystem = chkIncludeSystem.Checked,
+					IgnoredFolders = txtIgnoreFolders.Text,
+					FilePatterns = txtFilePatterns.Text,
+					SearchText = txtSearchPattern.Text,
+					SearchAsRegex = chkSearchAsRegex.Checked,
+					CreatedAtUtc = DateTime.UtcNow
+				};
+				_FormStateObj.SearchMetricList.Add(searchMetricName, o);
+				_FormStateObj.UpdatedAtUtc = DateTime.UtcNow;
+			}
+		}
+
+#if FALSE
+				// ----------------------------
 
 				txtFolder.Text = formState.Folder;
 				chkRecurse.Checked = formState.IncludeSubfolders;
@@ -467,14 +527,25 @@ namespace BOG.TextFileSearch
 				txtFilePatterns.Text = formState.FilePatterns;
 				txtSearchPattern.Text = formState.SearchText;
 				chkSearchAsRegex.Checked = formState.SearchAsRegex;
-			}
-			catch { }
-		}
+
+				// ----------------------------
+
+				txtFolder.Text = formState.Folder;
+				chkRecurse.Checked = formState.IncludeSubfolders;
+				chkIncludeHidden.Checked = formState.IncludeHidden;
+				chkIncludeSystem.Checked = formState.IncludeSystem;
+				txtIgnoreFolders.Text = formState.IgnoredFolders;
+				txtFilePatterns.Text = formState.FilePatterns;
+				txtSearchPattern.Text = formState.SearchText;
+				chkSearchAsRegex.Checked = formState.SearchAsRegex;
+
+				// ----------------------------
+#endif
 
 		private void AddToolStripMenuItemToContextMenuStrip(string text, EventHandler clickEvent)
 		{
 			ToolStripMenuItem menuItem = new(text);
-
+			menuItem.Text = text;
 			menuItem.Click += clickEvent;
 
 			ContextMenuStrip.Items.Add(menuItem);
@@ -573,6 +644,96 @@ namespace BOG.TextFileSearch
 		}
 
 		private void btnSearch_Click(object sender, EventArgs e)
+		{
+			btnSearch.Enabled = false;
+			txtFilePatterns.Enabled = false;
+			txtIgnoreFolders.Enabled = false;
+			txtSearchPattern.Enabled = false;
+			btnFolder.Enabled = false;
+			chkIncludeHidden.Enabled = false;
+			chkIncludeSystem.Enabled = false;
+			chkSearchAsRegex.Enabled = false;
+			this.Refresh();
+
+			Search(sender, e);
+
+			txtFilePatterns.Enabled = true;
+			txtIgnoreFolders.Enabled = true;
+			txtSearchPattern.Enabled = true;
+			btnFolder.Enabled = true;
+			chkIncludeHidden.Enabled = true;
+			chkIncludeSystem.Enabled = true;
+			chkSearchAsRegex.Enabled = true;
+			btnSearch.Enabled = true;
+			this.Refresh();
+		}
+
+		private void btnLoad_Click(object sender, EventArgs e)
+		{
+
+		}
+
+		private void button1_Click(object sender, EventArgs e)
+		{
+
+		}
+
+		private void btnClone_Click(object sender, EventArgs e)
+		{
+
+		}
+
+		private void btnRename_Click(object sender, EventArgs e)
+		{
+
+		}
+
+		private void btnDelete_Click(object sender, EventArgs e)
+		{
+
+		}
+
+		private void chkRecurse_CheckedChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+		}
+
+		private void chkIncludeHidden_CheckedChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+		}
+
+		private void chkIncludeSystem_CheckedChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+		}
+
+		private void chkSearchAsRegex_CheckedChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+		}
+
+		private void txtFolder_TextChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+		}
+
+		private void txtIgnoreFolders_TextChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+		}
+
+		private void txtFilePatterns_TextChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+		}
+
+		private void txtSearchPattern_TextChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+		}
+
+		private void cbxSearchSetName_SelectedIndexChanged(object sender, EventArgs e)
 		{
 
 		}

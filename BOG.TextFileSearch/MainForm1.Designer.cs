@@ -31,6 +31,13 @@
 			statusStrip1 = new StatusStrip();
 			toolStripStatusLabel1 = new ToolStripStatusLabel();
 			scMain = new SplitContainer();
+			btnDelete = new Button();
+			btnRename = new Button();
+			btnClone = new Button();
+			btnSave = new Button();
+			btnLoad = new Button();
+			cbxSearchSetName = new ComboBox();
+			lblSearchSetName = new Label();
 			chkIncludeSystem = new CheckBox();
 			chkIncludeHidden = new CheckBox();
 			txtIgnoreFolders = new TextBox();
@@ -78,13 +85,19 @@
 			// scMain
 			// 
 			scMain.Dock = DockStyle.Fill;
-			scMain.IsSplitterFixed = true;
 			scMain.Location = new Point(0, 0);
 			scMain.Name = "scMain";
 			scMain.Orientation = Orientation.Horizontal;
 			// 
 			// scMain.Panel1
 			// 
+			scMain.Panel1.Controls.Add(btnDelete);
+			scMain.Panel1.Controls.Add(btnRename);
+			scMain.Panel1.Controls.Add(btnClone);
+			scMain.Panel1.Controls.Add(btnSave);
+			scMain.Panel1.Controls.Add(btnLoad);
+			scMain.Panel1.Controls.Add(cbxSearchSetName);
+			scMain.Panel1.Controls.Add(lblSearchSetName);
 			scMain.Panel1.Controls.Add(chkIncludeSystem);
 			scMain.Panel1.Controls.Add(chkIncludeHidden);
 			scMain.Panel1.Controls.Add(txtIgnoreFolders);
@@ -103,40 +116,114 @@
 			// 
 			scMain.Panel2.Controls.Add(tabcResults);
 			scMain.Size = new Size(1121, 673);
-			scMain.SplitterDistance = 151;
+			scMain.SplitterDistance = 162;
 			scMain.TabIndex = 1;
+			// 
+			// btnDelete
+			// 
+			btnDelete.AccessibleRole = AccessibleRole.Alert;
+			btnDelete.Location = new Point(750, 131);
+			btnDelete.Name = "btnDelete";
+			btnDelete.Size = new Size(75, 23);
+			btnDelete.TabIndex = 19;
+			btnDelete.Text = "&Delete";
+			btnDelete.UseVisualStyleBackColor = true;
+			btnDelete.Click += btnDelete_Click;
+			// 
+			// btnRename
+			// 
+			btnRename.Location = new Point(669, 131);
+			btnRename.Name = "btnRename";
+			btnRename.Size = new Size(75, 23);
+			btnRename.TabIndex = 18;
+			btnRename.Text = "&Rename";
+			btnRename.UseVisualStyleBackColor = true;
+			btnRename.Click += btnRename_Click;
+			// 
+			// btnClone
+			// 
+			btnClone.Location = new Point(588, 131);
+			btnClone.Name = "btnClone";
+			btnClone.Size = new Size(75, 23);
+			btnClone.TabIndex = 17;
+			btnClone.Text = "&Clone";
+			btnClone.UseVisualStyleBackColor = true;
+			btnClone.Click += btnClone_Click;
+			// 
+			// btnSave
+			// 
+			btnSave.Location = new Point(507, 131);
+			btnSave.Name = "btnSave";
+			btnSave.Size = new Size(75, 23);
+			btnSave.TabIndex = 16;
+			btnSave.Text = "Sa&ve";
+			btnSave.UseVisualStyleBackColor = true;
+			btnSave.Click += button1_Click;
+			// 
+			// btnLoad
+			// 
+			btnLoad.Location = new Point(426, 131);
+			btnLoad.Name = "btnLoad";
+			btnLoad.Size = new Size(75, 23);
+			btnLoad.TabIndex = 15;
+			btnLoad.Text = "&Load";
+			btnLoad.UseVisualStyleBackColor = true;
+			btnLoad.Click += btnLoad_Click;
+			// 
+			// cbxSearchSetName
+			// 
+			cbxSearchSetName.AutoCompleteSource = AutoCompleteSource.ListItems;
+			cbxSearchSetName.FormattingEnabled = true;
+			cbxSearchSetName.Location = new Point(122, 131);
+			cbxSearchSetName.Name = "cbxSearchSetName";
+			cbxSearchSetName.Size = new Size(285, 23);
+			cbxSearchSetName.TabIndex = 14;
+			cbxSearchSetName.Text = "(Default)";
+			cbxSearchSetName.SelectedIndexChanged += cbxSearchSetName_SelectedIndexChanged;
+			// 
+			// lblSearchSetName
+			// 
+			lblSearchSetName.AutoSize = true;
+			lblSearchSetName.Location = new Point(18, 135);
+			lblSearchSetName.Name = "lblSearchSetName";
+			lblSearchSetName.Size = new Size(96, 15);
+			lblSearchSetName.TabIndex = 13;
+			lblSearchSetName.Text = "Search Set Name";
 			// 
 			// chkIncludeSystem
 			// 
 			chkIncludeSystem.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 			chkIncludeSystem.AutoSize = true;
-			chkIncludeSystem.Location = new Point(971, 109);
+			chkIncludeSystem.Location = new Point(965, 90);
 			chkIncludeSystem.Name = "chkIncludeSystem";
 			chkIncludeSystem.Size = new Size(106, 19);
 			chkIncludeSystem.TabIndex = 11;
 			chkIncludeSystem.Text = "Include &System";
 			chkIncludeSystem.UseVisualStyleBackColor = true;
+			chkIncludeSystem.CheckedChanged += chkIncludeSystem_CheckedChanged;
 			// 
 			// chkIncludeHidden
 			// 
 			chkIncludeHidden.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 			chkIncludeHidden.AutoSize = true;
-			chkIncludeHidden.Location = new Point(970, 84);
+			chkIncludeHidden.Location = new Point(965, 65);
 			chkIncludeHidden.Name = "chkIncludeHidden";
 			chkIncludeHidden.Size = new Size(107, 19);
 			chkIncludeHidden.TabIndex = 10;
 			chkIncludeHidden.Text = "Include &Hidden";
 			chkIncludeHidden.UseVisualStyleBackColor = true;
+			chkIncludeHidden.CheckedChanged += chkIncludeHidden_CheckedChanged;
 			// 
 			// txtIgnoreFolders
 			// 
 			txtIgnoreFolders.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-			txtIgnoreFolders.Location = new Point(107, 41);
+			txtIgnoreFolders.Location = new Point(122, 41);
 			txtIgnoreFolders.MinimumSize = new Size(600, 23);
 			txtIgnoreFolders.Name = "txtIgnoreFolders";
-			txtIgnoreFolders.Size = new Size(830, 23);
+			txtIgnoreFolders.Size = new Size(815, 23);
 			txtIgnoreFolders.TabIndex = 3;
 			txtIgnoreFolders.Tag = "Ignore Folders";
+			txtIgnoreFolders.TextChanged += txtIgnoreFolders_TextChanged;
 			// 
 			// lblIgnoreFolders
 			// 
@@ -151,22 +238,24 @@
 			// chkSearchAsRegex
 			// 
 			chkSearchAsRegex.AutoSize = true;
-			chkSearchAsRegex.Location = new Point(107, 129);
+			chkSearchAsRegex.Location = new Point(965, 115);
 			chkSearchAsRegex.Name = "chkSearchAsRegex";
-			chkSearchAsRegex.Size = new Size(225, 19);
+			chkSearchAsRegex.Size = new Size(114, 19);
 			chkSearchAsRegex.TabIndex = 8;
-			chkSearchAsRegex.Text = "Search Pattern is a regular expressiom";
+			chkSearchAsRegex.Text = "Search as regexp";
 			chkSearchAsRegex.UseVisualStyleBackColor = true;
+			chkSearchAsRegex.CheckedChanged += chkSearchAsRegex_CheckedChanged;
 			// 
 			// txtSearchPattern
 			// 
 			txtSearchPattern.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-			txtSearchPattern.Location = new Point(107, 100);
+			txtSearchPattern.Location = new Point(122, 100);
 			txtSearchPattern.MinimumSize = new Size(600, 23);
 			txtSearchPattern.Name = "txtSearchPattern";
-			txtSearchPattern.Size = new Size(830, 23);
+			txtSearchPattern.Size = new Size(815, 23);
 			txtSearchPattern.TabIndex = 7;
 			txtSearchPattern.Tag = "Search Pattern";
+			txtSearchPattern.TextChanged += txtSearchPattern_TextChanged;
 			// 
 			// lblSearchPattern
 			// 
@@ -180,12 +269,13 @@
 			// txtFilePatterns
 			// 
 			txtFilePatterns.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-			txtFilePatterns.Location = new Point(107, 70);
+			txtFilePatterns.Location = new Point(122, 70);
 			txtFilePatterns.MinimumSize = new Size(600, 23);
 			txtFilePatterns.Name = "txtFilePatterns";
-			txtFilePatterns.Size = new Size(830, 23);
+			txtFilePatterns.Size = new Size(815, 23);
 			txtFilePatterns.TabIndex = 5;
 			txtFilePatterns.Tag = "File Patterns";
+			txtFilePatterns.TextChanged += txtFilePatterns_TextChanged;
 			// 
 			// lblFilePatterns
 			// 
@@ -199,12 +289,14 @@
 			// txtFolder
 			// 
 			txtFolder.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-			txtFolder.Location = new Point(107, 12);
+			txtFolder.Location = new Point(122, 12);
 			txtFolder.MinimumSize = new Size(600, 23);
 			txtFolder.Name = "txtFolder";
-			txtFolder.Size = new Size(830, 23);
+			txtFolder.ReadOnly = true;
+			txtFolder.Size = new Size(815, 23);
 			txtFolder.TabIndex = 1;
 			txtFolder.Tag = "Folder";
+			txtFolder.TextChanged += txtFolder_TextChanged;
 			// 
 			// btnFolder
 			// 
@@ -221,7 +313,7 @@
 			btnSearch.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 			btnSearch.Location = new Point(956, 12);
 			btnSearch.Name = "btnSearch";
-			btnSearch.Size = new Size(153, 36);
+			btnSearch.Size = new Size(153, 23);
 			btnSearch.TabIndex = 12;
 			btnSearch.Text = "&Search";
 			btnSearch.UseVisualStyleBackColor = true;
@@ -231,12 +323,13 @@
 			// 
 			chkRecurse.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 			chkRecurse.AutoSize = true;
-			chkRecurse.Location = new Point(970, 59);
+			chkRecurse.Location = new Point(965, 40);
 			chkRecurse.Name = "chkRecurse";
 			chkRecurse.Size = new Size(126, 19);
 			chkRecurse.TabIndex = 9;
 			chkRecurse.Text = "&Include sub folders";
 			chkRecurse.UseVisualStyleBackColor = true;
+			chkRecurse.CheckedChanged += chkRecurse_CheckedChanged;
 			// 
 			// tabcResults
 			// 
@@ -246,7 +339,7 @@
 			tabcResults.Location = new Point(0, 0);
 			tabcResults.Name = "tabcResults";
 			tabcResults.SelectedIndex = 0;
-			tabcResults.Size = new Size(1121, 518);
+			tabcResults.Size = new Size(1121, 507);
 			tabcResults.TabIndex = 0;
 			// 
 			// tabpFound
@@ -255,7 +348,7 @@
 			tabpFound.Location = new Point(4, 24);
 			tabpFound.Name = "tabpFound";
 			tabpFound.Padding = new Padding(3);
-			tabpFound.Size = new Size(1113, 490);
+			tabpFound.Size = new Size(1113, 479);
 			tabpFound.TabIndex = 0;
 			tabpFound.Text = "Found";
 			tabpFound.UseVisualStyleBackColor = true;
@@ -265,7 +358,7 @@
 			lvwFound.Dock = DockStyle.Fill;
 			lvwFound.Location = new Point(3, 3);
 			lvwFound.Name = "lvwFound";
-			lvwFound.Size = new Size(1107, 484);
+			lvwFound.Size = new Size(1107, 473);
 			lvwFound.TabIndex = 0;
 			lvwFound.UseCompatibleStateImageBehavior = false;
 			// 
@@ -275,7 +368,7 @@
 			tabpErrors.Location = new Point(4, 24);
 			tabpErrors.Name = "tabpErrors";
 			tabpErrors.Padding = new Padding(3);
-			tabpErrors.Size = new Size(1113, 490);
+			tabpErrors.Size = new Size(1113, 479);
 			tabpErrors.TabIndex = 1;
 			tabpErrors.Text = "Errors";
 			tabpErrors.UseVisualStyleBackColor = true;
@@ -285,7 +378,7 @@
 			lvwErrors.Dock = DockStyle.Fill;
 			lvwErrors.Location = new Point(3, 3);
 			lvwErrors.Name = "lvwErrors";
-			lvwErrors.Size = new Size(1107, 484);
+			lvwErrors.Size = new Size(1107, 473);
 			lvwErrors.TabIndex = 0;
 			lvwErrors.UseCompatibleStateImageBehavior = false;
 			// 
@@ -298,6 +391,7 @@
 			Controls.Add(statusStrip1);
 			Name = "MainForm";
 			Text = "BOG.TextFileSearch";
+			FormClosing += MainForm_FormClosing;
 			Load += OnFormLoad;
 			statusStrip1.ResumeLayout(false);
 			statusStrip1.PerformLayout();
@@ -337,5 +431,12 @@
 		private FolderBrowserDialog folderBrowserDialog1;
 		private CheckBox chkIncludeSystem;
 		private CheckBox chkIncludeHidden;
+		private Label lblSearchSetName;
+		private ComboBox cbxSearchSetName;
+		private Button btnLoad;
+		private Button btnSave;
+		private Button btnClone;
+		private Button btnRename;
+		private Button btnDelete;
 	}
 }
