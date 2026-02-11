@@ -374,7 +374,7 @@ namespace BOG.TextFileSearch
 
 			ContextMenuStrip = new();
 
-			if (File.Exists(ConfigEditorFileName))
+			if (File.Exists(ConfigEditorFile))
 			{
 				LoadConfigOptions();
 			}
@@ -387,39 +387,45 @@ namespace BOG.TextFileSearch
 			AddToolStripMenuItemToContextMenuStrip("Copy File Path", CopyFilePathToClipboard_Click);
 			AddToolStripMenuItemToContextMenuStrip("Copy Formatted", CopyFormattedContentToClipboard_Click);
 
-			if (File.Exists(FormStateFileName))
-			{
-				SaveFormState();
-			}
-			else
+			if (File.Exists(FormStateFile))
 			{
 				LoadFormState();
 			}
+			else
+			{
+				SaveFormState();
+			}
+			SetFormFromState(_FormStateObj.ActiveSearchMetric);
+			FormStateChanged = false;
 		}
 
 		private void LoadConfigOptions()
 		{
-			if (File.Exists(ConfigEditorFileName))
+			if (File.Exists(ConfigEditorFile))
 			{
-				_ConfigOptionsObj = ObjectJsonSerializer<ConfigOptions>.LoadDocumentFormat(ConfigEditorFileName);
+				_ConfigOptionsObj = ObjectJsonSerializer<ConfigOptions>.LoadDocumentFormat(ConfigEditorFile);
+				ConfigChanged = false;
 			}
 		}
 
 		private void SaveConfigOptions()
 		{
-			ObjectJsonSerializer<ConfigOptions>.SaveDocumentFormat(_ConfigOptionsObj, ConfigEditorFileName, true);
+			ObjectJsonSerializer<ConfigOptions>.SaveDocumentFormat(_ConfigOptionsObj, ConfigEditorFile, true);
+			ConfigChanged = false;
 		}
 
 		private void LoadFormState()
 		{
-			if (!File.Exists(FormStateFile))
+			if (File.Exists(FormStateFile))
 			{
 				_FormStateObj = ObjectJsonSerializer<FormState>.LoadDocumentFormat(FormStateFile);
+				FormStateChanged = false;
 			}
 		}
 		private void SaveFormState()
 		{
 			ObjectJsonSerializer<FormState>.SaveDocumentFormat(_FormStateObj, FormStateFile, true);
+			FormStateChanged = false;
 		}
 
 		private void SetFormFromState()
@@ -586,20 +592,48 @@ namespace BOG.TextFileSearch
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
-			var formState = new FormState
+			if (FormStateChanged)
 			{
-				Folder = txtFolder.Text,
-				IncludeSubfolders = chkRecurse.Checked,
-				IgnoredFolders = txtIgnoreFolders.Text,
-				IncludeHidden = chkIncludeHidden.Checked,
-				IncludeSystem = chkIncludeSystem.Checked,
-				FilePatterns = txtFilePatterns.Text,
-				SearchText = txtSearchPattern.Text,
-				SearchAsRegex = chkSearchAsRegex.Checked
-			};
+				switch (MessageBox.Show(
+					"If you application now, recent changes to the search arguments will be lost.\r\n\r\nDo you wish to save the changes?",
+					"Unsaved search form changes",
+					MessageBoxButtons.YesNoCancel,
+					MessageBoxIcon.Question)
+				)
+				{
+					case DialogResult.Yes:
+						SaveStateOfForm();
+						SaveFormState();
+						break;
+					case DialogResult.No:
+						break;
+					case DialogResult.Cancel:
+						e.Cancel = true;
+						break;
+				}
+				if (e.Cancel) return;
+			}
 
-			string serializedFormState = JsonSerializer.Serialize(formState);
-			File.WriteAllBytes(FormStateFileName, Encoding.UTF8.GetBytes(serializedFormState));
+			if (ConfigChanged)
+			{
+				switch (MessageBox.Show(
+					"If you application now, any recent changes to the configuration settings will be lost.\r\n\r\nDo you wish to save the changes?",
+					"Unsaved changes in configuration settings",
+					MessageBoxButtons.YesNoCancel,
+					MessageBoxIcon.Question)
+				)
+				{
+					case DialogResult.Yes:
+						SaveConfigOptions();
+						break;
+					case DialogResult.No:
+						break;
+					case DialogResult.Cancel:
+						e.Cancel = true;
+						break;
+				}
+				if (e.Cancel) return;
+			}
 		}
 
 		private void btnFolder_Click(object sender, EventArgs e)
@@ -619,17 +653,18 @@ namespace BOG.TextFileSearch
 				ListViewItem selectedItem = lvwFound.SelectedItems[0];
 
 				string filePath = selectedItem.SubItems[0].Text;
+				var ext= Path.GetExtension(filePath);
 				string lineNumber = selectedItem.SubItems[1].Text;
 
-				ProcessStartInfo processStartInfo = new(TextEditorProgramNameWithExtension)
-				{
-					// This will always be true, because we depend on this to execute the program relative to the path indicated by the user.
-					UseShellExecute = true,
-					WorkingDirectory = TextEditorPath,
-					Arguments = TextEditorCommandLineArgumentsFormat.Replace("[LN]", lineNumber).Replace("[FP]", filePath)
-				};
+				//ProcessStartInfo processStartInfo = new(_ConfigOptionsObj.EditorMappings[ext])
+				//{
+				//	// This will always be true, because we depend on this to execute the program relative to the path indicated by the user.
+				//	UseShellExecute = true,
+				//	WorkingDirectory = TextEditorPath,
+				//	Arguments = TextEditorCommandLineArgumentsFormat.Replace("[LN]", lineNumber).Replace("[FP]", filePath)
+				//};
 
-				Process.Start(processStartInfo);
+				//Process.Start(processStartInfo);
 			}
 			catch (Exception ex)
 			{

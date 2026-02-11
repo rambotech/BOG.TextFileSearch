@@ -105,7 +105,7 @@ namespace BOG.TextFileSearch.Entity
 			var result = new FormState
 			{
 				ActiveSearchMetric = "(Default)",
-				SearchMetricList = new List<SearchMetric> { defaultSearchMetric },
+				SearchMetricList = new Dictionary<string, SearchMetric> { { "(Default)", defaultSearchMetric } },
 				CreatedAtUtc = DateTime.UtcNow,
 				UpdatedAtUtc = null
 			};

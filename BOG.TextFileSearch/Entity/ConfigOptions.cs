@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
+﻿using System.Text.Json;
 using Newtonsoft.Json;
 
 namespace BOG.TextFileSearch.Entity
@@ -33,8 +28,8 @@ namespace BOG.TextFileSearch.Entity
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
-			NullValueHandling = NullValueHandling.Ignore,
-			Required = Required.AllowNull)]
+			NullValueHandling = NullValueHandling.Include,
+			Required = Required.Default)]
 		public DateTime? UpdatedAtUtc { get; set; }
 	}
 
