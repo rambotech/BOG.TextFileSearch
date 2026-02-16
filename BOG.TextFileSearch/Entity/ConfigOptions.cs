@@ -24,13 +24,23 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Always)]
+		public string[] Extensions { get; set; } = new string[] { "*" };
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public bool EditorExists { get; set;  } = false;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Always)]
 		public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			NullValueHandling = NullValueHandling.Include,
 			Required = Required.Default)]
-		public DateTime? UpdatedAtUtc { get; set; }
+		public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 	}
 
 	[JsonObject(MemberSerialization.OptIn)]
@@ -39,49 +49,68 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Always)]
-		public Dictionary<string, EditorProgram> EditorPrograms { get; set; } = new Dictionary<string, EditorProgram>();
+		public List<EditorProgram> EditorPrograms { get; set; } = new List<EditorProgram>();
 
-		// key: extention (e.g., .txt), value: editor program config object (e.g., Notepad++)
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Always)]
-		public Dictionary<string, List<string>> EditorMappings { get; set; } = new Dictionary<string, List<string>>();
+		public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			NullValueHandling = NullValueHandling.Include,
+			Required = Required.Default)]
+		public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 	}
 
 	public static class ConfigOptionsFactory
 	{
 		public static ConfigOptions CreateDefaultObject()
 		{
-			var NotePadPlusPlus = new EditorProgram
-			{
-				EditorName = "Notepad++",
-				ExeFile = "\"C:\\Program Files\\Notepad++\\notepad++.exe\"",
-				CommandLineArguments = "#{target_file}# -n#{line_number}#",
-				CreatedAtUtc = DateTime.UtcNow
-			};
-			var SqlSMS = new EditorProgram
-			{
-				EditorName = "SQl Server Management Studio",
-				ExeFile = "\"C:\\Program Files (x86)\\Microsoft SQL Server Management Studio 20\\Common7\\IDE\\Ssms.exe\"",
-				CommandLineArguments = "#{target_file}#",
-				CreatedAtUtc = DateTime.UtcNow
-			};
 			var result = new ConfigOptions
 			{
-				EditorPrograms = new Dictionary<string, EditorProgram>
+				EditorPrograms = new List<EditorProgram>
 				{
-					{ "Notepad++", NotePadPlusPlus},
-					{ "SQl Server Management Studio", SqlSMS }
-				},
-				EditorMappings = new Dictionary<string, List<string>>
-				{
-					{ ".txt", new List<string>( new string[] {"Notepad++" })},
-					{ ".log",  new List<string>( new string[] {"Notepad++" })},
-					{ ".md",  new List<string>( new string[] {"Notepad++" })},
-					{ ".sql",  new List<string>( new string[] {"Notepad++" ,"SqlSMS"})},
+					new EditorProgram
+					{
+						EditorName = "Notepad",
+						ExeFile = "C:\\Windows\\notepad.exe",
+						CommandLineArguments = "\"#{target_file}#\"",
+						Extensions = new string[] { "*" },
+						CreatedAtUtc = DateTime.UtcNow,
+						UpdatedAtUtc = DateTime.UtcNow
+					},
+					new EditorProgram
+					{
+						EditorName = "Notepad++",
+						ExeFile = "C:\\Program Files\\Notepad++\\notepad++.exe",
+						CommandLineArguments = "\"#{target_file}#\" -n#{line_number}# -multiInst",
+						Extensions = new string[] { ".txt", ".log", ".md", ".xml", ".xsl", ".xslt", ".xaml", "json", ".cs", ".sql" },
+						CreatedAtUtc = DateTime.UtcNow,
+						UpdatedAtUtc = DateTime.UtcNow
+					},
+					new EditorProgram
+					{
+						EditorName = "SQl Server Management Studio",
+						ExeFile = "C:\\Program Files (x86)\\Microsoft SQL Server Management Studio 20\\Common7\\IDE\\SSMS.exe",
+						CommandLineArguments = "\"#{target_file}#\"",
+						CreatedAtUtc = DateTime.UtcNow,
+						UpdatedAtUtc = DateTime.UtcNow
+					}
 				}
 			};
 			return result;
+		}
+
+		public static void MarkExisitngEditorPrograms(ref ConfigOptions currentObj)
+		{
+			foreach (var editorProgram in currentObj.EditorPrograms)
+			{
+				if (System.IO.File.Exists(editorProgram.ExeFile.Trim()))
+				{
+					editorProgram.EditorExists = true;
+				}
+			}
 		}
 	}
 }

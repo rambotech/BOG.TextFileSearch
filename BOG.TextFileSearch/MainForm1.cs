@@ -412,10 +412,19 @@ namespace BOG.TextFileSearch
 			{
 				SaveConfigOptions();
 			}
-			//AddToolStripMenuItemToContextMenuStrip($"Open in {_ConfigOptionsObj.EditorPrograms[0].EditorName}", OpenInProgram_Click);
-			AddToolStripMenuItemToContextMenuStrip($"Open in NotePad++", OpenInProgram_Click);
-			AddToolStripMenuItemToContextMenuStrip("Copy File Path", CopyFilePathToClipboard_Click);
-			AddToolStripMenuItemToContextMenuStrip("Copy Formatted", CopyFormattedContentToClipboard_Click);
+
+			ConfigOptionsFactory.MarkExisitngEditorPrograms(ref _ConfigOptionsObj);
+			foreach (var editorProgram in _ConfigOptionsObj.EditorPrograms)
+			{
+				editorProgram.EditorExists = File.Exists(editorProgram.ExeFile);
+				AddToolStripMenuItemToContextMenuStrip(
+					$"Open in {editorProgram.EditorName}",
+					$"{editorProgram.EditorName}",
+					editorProgram.EditorExists,
+					OpenInProgram_Click);
+			}
+			AddToolStripMenuItemToContextMenuStrip("Copy File Path", "Copy File Path", true, CopyFilePathToClipboard_Click);
+			AddToolStripMenuItemToContextMenuStrip("Copy Formatted", "Copy Formatted", true, CopyFormattedContentToClipboard_Click);
 
 			if (File.Exists(FormStateFile))
 			{
@@ -562,11 +571,15 @@ namespace BOG.TextFileSearch
 			}
 		}
 
-		private void AddToolStripMenuItemToContextMenuStrip(string text, EventHandler clickEvent)
+		private void AddToolStripMenuItemToContextMenuStrip(string text, string handler, bool isAvailable, EventHandler clickEvent)
 		{
-			ToolStripMenuItem menuItem = new(text);
-			menuItem.Text = text;
-			menuItem.Click += clickEvent;
+			ToolStripMenuItem menuItem = new ToolStripMenuItem
+			{
+				Text = text,
+				Name = handler,
+				Enabled = isAvailable
+			};
+			menuItem.Click += (s, e) => { clickEvent(handler, e); };
 
 			ContextMenuStrip.Items.Add(menuItem);
 		}
@@ -646,7 +659,7 @@ namespace BOG.TextFileSearch
 
 			if (dialogResult == DialogResult.OK)
 			{
-				FormStateChanged = txtFolder.Text == folderBrowserDialog1.SelectedPath;
+				FormStateChanged = txtFolder.Text != folderBrowserDialog1.SelectedPath;
 				if (FormStateChanged)
 				{
 					txtFolder.Text = folderBrowserDialog1.SelectedPath;
@@ -668,23 +681,22 @@ namespace BOG.TextFileSearch
 				string filePath = selectedItem.SubItems[0].Text;
 				var ext = Path.GetExtension(filePath);
 				string lineNumber = selectedItem.SubItems[1].Text;
-
-				//ProcessStartInfo processStartInfo = new(_ConfigOptionsObj.EditorMappings[ext])
-				//{
-				//	// This will always be true, because we depend on this to execute the program relative to the path indicated by the user.
-				//	UseShellExecute = true,
-				//	WorkingDirectory = TextEditorPath,
-				//	Arguments = TextEditorCommandLineArgumentsFormat.Replace("[LN]", lineNumber).Replace("[FP]", filePath)
-				//};
-
+				var editor = _ConfigOptionsObj.EditorPrograms.FirstOrDefault(o => o.EditorName == (sender == null ? string.Empty : (string)sender));
+				if (editor == null)
+				{
+					MessageBox.Show($"The editor configuration for {sender} could not be found.", "Error");
+					return;
+				}
 				ProcessStartInfo processStartInfo = new ProcessStartInfo
 				{
-					FileName = @"C:\Program Files\Notepad++\notepad++.exe",
-					UseShellExecute = false,
+					// This will always be true, because we depend on this to execute the program relative to the path indicated by the user.
+					//UseShellExecute = true,
+					FileName = editor.ExeFile,
 					WorkingDirectory = Environment.CurrentDirectory,
-					Arguments = $"\"{filePath}\" -n{lineNumber}"
+					Arguments = editor.CommandLineArguments
+						.Replace("#{line_number}#", lineNumber)
+						.Replace("#{target_file}#", filePath)
 				};
-
 				Process.Start(processStartInfo);
 			}
 			catch (Exception ex)
@@ -709,14 +721,16 @@ namespace BOG.TextFileSearch
 			txtIgnoreFolders.Enabled = !Searching;
 			txtSearchPattern.Enabled = !Searching;
 			btnFolder.Enabled = !Searching;
-			btnLoad.Enabled = !Searching && !FormStateChanged;
+			btnLoad.Enabled = !Searching && FormStateChanged;
 			btnSave.Enabled = !Searching && FormStateChanged;
 			btnRename.Enabled = !Searching;
 			btnDelete.Enabled = !Searching;
 			btnClone.Enabled = !Searching;
+			chkRecurse.Enabled = !Searching;
 			chkIncludeHidden.Enabled = !Searching;
 			chkIncludeSystem.Enabled = !Searching;
 			chkSearchAsRegex.Enabled = !Searching;
+			cbxSearchSetName.Enabled = !Searching;
 			btnSearch.Enabled = !Searching;
 			this.Refresh();
 		}
