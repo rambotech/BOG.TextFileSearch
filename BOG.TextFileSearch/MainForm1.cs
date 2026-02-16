@@ -148,6 +148,8 @@ namespace BOG.TextFileSearch
 		{
 			_AllFileNames.Clear();
 
+			if (ContainsIgnoredDirectories(folder, _IgnoredDirectories)) return;
+
 			foreach (string pattern in _FilePatterns)
 			{
 				toolStripStatusLabel1.Text = $"Loading file list {pattern} in {folder}";
@@ -239,6 +241,9 @@ namespace BOG.TextFileSearch
 
 					fileNameToLineNumber[file.Key].Add(lineNumber);
 				}
+			}
+			if (_ListOfFileMatches.Count > 0)
+			{
 				UpdatelvwFound(_ListOfFileMatches);
 				_ListOfFileMatches.Clear();
 			}
@@ -373,6 +378,7 @@ namespace BOG.TextFileSearch
 
 				lvwFound.Items.Add(item);
 			}
+			this.lvwFound.Refresh();
 		}
 
 		#region Events
