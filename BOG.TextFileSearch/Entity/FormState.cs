@@ -92,7 +92,7 @@ namespace BOG.TextFileSearch.Entity
 		{
 			var defaultSearchMetric = new SearchMetric
 			{
-				Folder = @"%USERPROFILE%",
+				Folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
 				FilePatterns = "*.txt",
 				IgnoredFolders = @"C:\Windows;C:\Program Files;C:\Program Files (x86)",
 				IncludeHidden = false,

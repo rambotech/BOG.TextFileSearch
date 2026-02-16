@@ -31,6 +31,7 @@
 			statusStrip1 = new StatusStrip();
 			toolStripStatusLabel1 = new ToolStripStatusLabel();
 			scMain = new SplitContainer();
+			chkIncludeSystem = new CheckBox();
 			btnDelete = new Button();
 			btnRename = new Button();
 			btnClone = new Button();
@@ -38,7 +39,6 @@
 			btnLoad = new Button();
 			cbxSearchSetName = new ComboBox();
 			lblSearchSetName = new Label();
-			chkIncludeSystem = new CheckBox();
 			chkIncludeHidden = new CheckBox();
 			txtIgnoreFolders = new TextBox();
 			lblIgnoreFolders = new Label();
@@ -91,6 +91,7 @@
 			// 
 			// scMain.Panel1
 			// 
+			scMain.Panel1.Controls.Add(chkIncludeSystem);
 			scMain.Panel1.Controls.Add(btnDelete);
 			scMain.Panel1.Controls.Add(btnRename);
 			scMain.Panel1.Controls.Add(btnClone);
@@ -98,7 +99,6 @@
 			scMain.Panel1.Controls.Add(btnLoad);
 			scMain.Panel1.Controls.Add(cbxSearchSetName);
 			scMain.Panel1.Controls.Add(lblSearchSetName);
-			scMain.Panel1.Controls.Add(chkIncludeSystem);
 			scMain.Panel1.Controls.Add(chkIncludeHidden);
 			scMain.Panel1.Controls.Add(txtIgnoreFolders);
 			scMain.Panel1.Controls.Add(lblIgnoreFolders);
@@ -118,6 +118,18 @@
 			scMain.Size = new Size(1121, 673);
 			scMain.SplitterDistance = 162;
 			scMain.TabIndex = 1;
+			// 
+			// chkIncludeSystem
+			// 
+			chkIncludeSystem.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+			chkIncludeSystem.AutoSize = true;
+			chkIncludeSystem.Location = new Point(965, 90);
+			chkIncludeSystem.Name = "chkIncludeSystem";
+			chkIncludeSystem.Size = new Size(106, 19);
+			chkIncludeSystem.TabIndex = 20;
+			chkIncludeSystem.Text = "Include &System";
+			chkIncludeSystem.UseVisualStyleBackColor = true;
+			chkIncludeSystem.CheckedChanged += chkIncludeSystem_CheckedChanged;
 			// 
 			// btnDelete
 			// 
@@ -158,7 +170,7 @@
 			btnSave.TabIndex = 16;
 			btnSave.Text = "Sa&ve";
 			btnSave.UseVisualStyleBackColor = true;
-			btnSave.Click += button1_Click;
+			btnSave.Click += btnSave_Click;
 			// 
 			// btnLoad
 			// 
@@ -189,18 +201,6 @@
 			lblSearchSetName.Size = new Size(96, 15);
 			lblSearchSetName.TabIndex = 13;
 			lblSearchSetName.Text = "Search Set Name";
-			// 
-			// chkIncludeSystem
-			// 
-			chkIncludeSystem.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-			chkIncludeSystem.AutoSize = true;
-			chkIncludeSystem.Location = new Point(965, 90);
-			chkIncludeSystem.Name = "chkIncludeSystem";
-			chkIncludeSystem.Size = new Size(106, 19);
-			chkIncludeSystem.TabIndex = 11;
-			chkIncludeSystem.Text = "Include &System";
-			chkIncludeSystem.UseVisualStyleBackColor = true;
-			chkIncludeSystem.CheckedChanged += chkIncludeSystem_CheckedChanged;
 			// 
 			// chkIncludeHidden
 			// 
@@ -238,21 +238,21 @@
 			// chkSearchAsRegex
 			// 
 			chkSearchAsRegex.AutoSize = true;
-			chkSearchAsRegex.Location = new Point(965, 115);
+			chkSearchAsRegex.Location = new Point(764, 103);
 			chkSearchAsRegex.Name = "chkSearchAsRegex";
-			chkSearchAsRegex.Size = new Size(114, 19);
+			chkSearchAsRegex.Size = new Size(174, 19);
 			chkSearchAsRegex.TabIndex = 8;
-			chkSearchAsRegex.Text = "Search as regexp";
+			chkSearchAsRegex.Text = "Search as regular expression";
 			chkSearchAsRegex.UseVisualStyleBackColor = true;
 			chkSearchAsRegex.CheckedChanged += chkSearchAsRegex_CheckedChanged;
 			// 
 			// txtSearchPattern
 			// 
 			txtSearchPattern.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-			txtSearchPattern.Location = new Point(122, 100);
+			txtSearchPattern.Location = new Point(122, 99);
 			txtSearchPattern.MinimumSize = new Size(600, 23);
 			txtSearchPattern.Name = "txtSearchPattern";
-			txtSearchPattern.Size = new Size(815, 23);
+			txtSearchPattern.Size = new Size(622, 23);
 			txtSearchPattern.TabIndex = 7;
 			txtSearchPattern.Tag = "Search Pattern";
 			txtSearchPattern.TextChanged += txtSearchPattern_TextChanged;
@@ -429,7 +429,6 @@
 		private TextBox txtIgnoreFolders;
 		private Label lblIgnoreFolders;
 		private FolderBrowserDialog folderBrowserDialog1;
-		private CheckBox chkIncludeSystem;
 		private CheckBox chkIncludeHidden;
 		private Label lblSearchSetName;
 		private ComboBox cbxSearchSetName;
@@ -438,5 +437,6 @@
 		private Button btnClone;
 		private Button btnRename;
 		private Button btnDelete;
+		private CheckBox chkIncludeSystem;
 	}
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -24,6 +25,8 @@ namespace BOG.TextFileSearch
 		private const int MaxItemsInlvwFound = 0;
 		private const int NumberOfBreakLineCharsToSkip = 2;
 
+		private static string PathDelimiter = "\\";	
+
 		private readonly Stopwatch Stopwatch = new();
 
 		private string AppDataFolderPath = string.Empty;
@@ -40,10 +43,20 @@ namespace BOG.TextFileSearch
 		private FormState _FormStateObj = FormStateFactory.CreateDefaultObject();
 		private ConfigOptions _ConfigOptionsObj = ConfigOptionsFactory.CreateDefaultObject();
 
+		private List<FileMatchInformation> _ListOfFileMatches = new();
+		private List<FileErrorInformation> _ListOfErrors = new();
+		private Dictionary<string, FileOccurrence> _FileSearchResults = new();
+		private List<string> _AllFileNames = new();
+		private string[] _FilePatterns = new string[1];
+		private string[] _IgnoredDirectories = new string[1];
+		private int _TotalOccurrences = 0;
+		private bool _ReachedLimit = false;
+
 		public MainForm()
 		{
 			InitializeComponent();
 
+			PathDelimiter = Environment.OSVersion.Platform == PlatformID.Win32NT ? "\\" : "/";	
 			AppDataFolderPath = Path.Combine(
 				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 				"Bits Of Genius",
@@ -79,8 +92,6 @@ namespace BOG.TextFileSearch
 				return;
 			}
 
-			string filePatterns = CleanSemiColonString(txtFilePatterns.Text);
-
 			if (!TextBoxValidate(txtFolder))
 			{
 				return;
@@ -97,13 +108,15 @@ namespace BOG.TextFileSearch
 				return;
 			}
 
-			if (string.IsNullOrEmpty(filePatterns) || filePatterns.Contains("*.*"))
-				return;
+			if (string.IsNullOrWhiteSpace(txtFilePatterns.Text)) return;
+
+			var filePatterns = txtFilePatterns.Text.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+			if (filePatterns.Contains("*.*")) return;
 
 			if (!Directory.Exists(txtFolder.Text))
 				return;
 
-			await Search(txtFolder.Text, txtSearchPattern.Text);
+			Search(txtFolder.Text, txtSearchPattern.Text);
 		}
 
 		public bool RegexPatternIsValid(string pattern)
@@ -131,132 +144,130 @@ namespace BOG.TextFileSearch
 			return true;
 		}
 
-		public static string CleanSemiColonString(string str)
-			=> new Regex("^;{1,}|;{2,}|;$").Replace(str, "");
+		private void SearchProcess(string folder, string search)
+		{
+			_AllFileNames.Clear();
 
-		private async Task Search(string folder, string search)
+			foreach (string pattern in _FilePatterns)
+			{
+				toolStripStatusLabel1.Text = $"Loading file list {pattern} in {folder}";
+				this.statusStrip1.Refresh();
+				try
+				{
+					_AllFileNames.AddRange(
+						Directory.GetFiles(folder, pattern, new EnumerationOptions
+						{
+							MatchCasing = MatchCasing.PlatformDefault,
+							RecurseSubdirectories = false,
+							IgnoreInaccessible = true,
+							AttributesToSkip = (!chkIncludeHidden.Checked ? FileAttributes.Hidden : 0) | (!chkIncludeSystem.Checked ? FileAttributes.System : 0)
+						})
+					);
+				}
+				catch (Exception ex)
+				{
+					_ListOfErrors.Add(new FileErrorInformation
+					{
+						FileName = pattern,
+						Error = ex.InnerException?.Message ?? ex.Message
+					});
+				}
+			}
+
+			foreach (string filePath in _AllFileNames)
+			{
+				if (string.IsNullOrEmpty(filePath) || ContainsIgnoredDirectories(filePath, _IgnoredDirectories))
+					continue;
+
+				string fileContent = File.ReadAllTextAsync(filePath).GetAwaiter().GetResult();
+				List<int> indexes = new();
+				if (chkSearchAsRegex.Checked)
+				{
+					MatchCollection matches = Regex.Matches(fileContent, txtSearchPattern.Text);
+					for (var index = 0; index < matches.Count; index++)
+					{
+						indexes.Add(matches[index].Index);
+					}
+				}
+				else
+				{
+					var offset = 0;
+					while ((offset = fileContent.IndexOf(search, offset, StringComparison.OrdinalIgnoreCase)) != -1)
+					{
+						indexes.Add(offset);
+						offset += search.Length;
+					}
+				}
+				_TotalOccurrences += indexes.Count;
+
+				if (indexes.Count > 0)
+				{
+					_FileSearchResults.Add(filePath, new FileOccurrence(fileContent, indexes));
+				}
+			}
+
+			foreach (KeyValuePair<string, FileOccurrence> file in _FileSearchResults)
+			{
+				if (_ReachedLimit)
+					break;
+
+				Dictionary<string, List<int>> fileNameToLineNumber = new();
+
+				fileNameToLineNumber.TryAdd(file.Key, new List<int>());
+
+				foreach (int idx in file.Value.MatchIndexes)
+				{
+					if (MaxItemsInlvwFound > 0 && _ListOfFileMatches.Count > MaxItemsInlvwFound)
+					{
+						_ReachedLimit = true;
+						break;
+					}
+
+					int lineNumber = default;
+					string lineContent = string.Empty;
+
+					var hasSuccess = TryReadWholeLine(
+								file.Value.FileContent,
+								idx,
+								out lineNumber,
+								out lineContent);
+					if (! hasSuccess) break;
+
+					if (fileNameToLineNumber[file.Key].Contains(lineNumber)) continue;
+
+					_ListOfFileMatches.Add(new(file.Key, lineNumber, lineContent));
+
+					fileNameToLineNumber[file.Key].Add(lineNumber);
+				}
+				UpdatelvwFound(_ListOfFileMatches);
+				_ListOfFileMatches.Clear();
+			}
+			if (chkRecurse.Checked)
+			{
+				foreach (var subdir in Directory.GetDirectories(folder, "*", SearchOption.TopDirectoryOnly))
+				{
+					SearchProcess(subdir, search);
+				}
+			}
+		}
+
+		private void Search(string folder, string search)
 		{
 			lvwFound.Items.Clear();
 			lvwErrors.Items.Clear();
 			this.Refresh();
-			toolStripStatusLabel1.Text = $"Loading file list ... {folder}";
-			this.statusStrip1.Refresh();
-
-			int totalOccurrences = 0;
-			bool reachedLimit = false;
-
-			List<FileMatchInformation> listOfFileMatches = new();
-			List<FileErrorInformation> listOfErrors = new();
 
 			try
 			{
 				Stopwatch.Start();
 
-				Dictionary<string, FileOccurrence> fileSearchResults = new();
-				// Dictionary<string, FileOccurrence> fileContents = new();
+				_FileSearchResults.Clear();
+				_FilePatterns = (txtFilePatterns.Text ?? string.Empty).Split(';');
+				_IgnoredDirectories = (txtIgnoreFolders.Text ?? string.Empty).Split(';');
+				_ReachedLimit = false;
+				_TotalOccurrences = 0;
 
-				string[] filePatterns = CleanSemiColonString(txtFilePatterns.Text).Split(';');
-
-				string ignoredDirectories =
-					string.Join("|", CleanSemiColonString(txtIgnoreFolders.Text).Split(';'));
-
-				List<string> allFileNames = new();
-
-				foreach (string pattern in filePatterns)
-				{
-					try
-					{
-						allFileNames.AddRange(
-							Directory.GetFiles(folder, pattern, new EnumerationOptions
-							{
-								MatchCasing = MatchCasing.PlatformDefault,
-								RecurseSubdirectories = chkRecurse.Checked,
-								IgnoreInaccessible = true,
-								AttributesToSkip = (!chkIncludeHidden.Checked ? FileAttributes.Hidden : 0) | (!chkIncludeSystem.Checked ? FileAttributes.System : 0)
-							})
-						);
-					}
-					catch (Exception ex)
-					{
-						listOfErrors.Add(new FileErrorInformation
-						{
-							FileName = pattern,
-							Error = ex.InnerException?.Message ?? ex.Message
-						});
-					}
-					toolStripStatusLabel1.Text = $"Loading file list ... {pattern}: {allFileNames.Count} / {listOfErrors.Count}";
-					this.statusStrip1.Refresh();
-				}
-
-				foreach (string filePath in allFileNames)
-				{
-					if (ContainsIgnoredDirectories(filePath, ignoredDirectories) || string.IsNullOrEmpty(filePath))
-						continue;
-
-					string fileContent = await File.ReadAllTextAsync(filePath);
-					List<int> indexes = new();
-					if (chkSearchAsRegex.Checked)
-					{
-						MatchCollection matches = Regex.Matches(fileContent, txtSearchPattern.Text);
-						for (var index = 0; index < matches.Count; index++)
-						{
-							indexes.Add(matches[index].Index);
-						}
-					}
-					else
-					{
-						var offset = 0;
-						while ((offset = fileContent.IndexOf(search, offset, StringComparison.OrdinalIgnoreCase)) != -1)
-						{
-							indexes.Add(offset);
-							offset += search.Length;
-						}
-					}
-					totalOccurrences += indexes.Count;
-
-					if (indexes.Count > 0)
-					{
-						fileSearchResults.Add(filePath, new FileOccurrence(fileContent, indexes));
-						toolStripStatusLabel1.Text = $"Matching file list ... {filePath}";
-						this.statusStrip1.Refresh();
-					}
-				}
-
-				foreach (KeyValuePair<string, FileOccurrence> file in fileSearchResults)
-				{
-					if (reachedLimit)
-						break;
-
-					Dictionary<string, List<int>> fileNameToLineNumber = new();
-
-					fileNameToLineNumber.TryAdd(file.Key, new List<int>());
-
-					foreach (int idx in file.Value.MatchIndexes)
-					{
-						if (MaxItemsInlvwFound > 0 && listOfFileMatches.Count > MaxItemsInlvwFound)
-						{
-							reachedLimit = true;
-							break;
-						}
-
-						int lineNumber = default;
-						string lineContent = string.Empty;
-
-						if (!await Task.Run(
-								() => TryReadWholeLine(
-									file.Value.FileContent, idx, out lineNumber, out lineContent)
-							)
-						   )
-							break;
-
-						if (fileNameToLineNumber[file.Key].Contains(lineNumber))
-							continue;
-
-						listOfFileMatches.Add(new(file.Key, lineNumber, lineContent));
-
-						fileNameToLineNumber[file.Key].Add(lineNumber);
-					}
-				}
+				SearchProcess(folder, search);
 			}
 			catch (Exception ex)
 			{
@@ -269,20 +280,31 @@ namespace BOG.TextFileSearch
 			}
 			finally
 			{
-				UpdatelvwFound(listOfFileMatches);
+				UpdatelvwFound(_ListOfFileMatches);
 
 				Stopwatch.Stop();
 
 				lvwFound.AutoResizeColumn(0, ColumnHeaderAutoResizeStyle.HeaderSize);
 				lvwFound.AutoResizeColumn(1, ColumnHeaderAutoResizeStyle.HeaderSize);
 
-				toolStripStatusLabel1.Text = $"Done ... {string.Format(ResultsFoundFormat, totalOccurrences, lvwFound.Items.Count.ToString())} ... {UpdateResultsReturnedLabelWithStopwatchElapsedTime()}";
+				toolStripStatusLabel1.Text = $"Done ... {string.Format(ResultsFoundFormat, _TotalOccurrences, lvwFound.Items.Count.ToString())} ... {UpdateResultsReturnedLabelWithStopwatchElapsedTime()}";
 				this.statusStrip1.Refresh();
 			}
 		}
 
-		public static bool ContainsIgnoredDirectories(string filePath, string ignoredDirectories)
-			=> Regex.IsMatch(filePath, string.Concat(@"\\", ignoredDirectories, @"\\"));
+		public static bool ContainsIgnoredDirectories(string filePath, string[] ignoredDirectories)
+		{
+			foreach (var ignoredDir in ignoredDirectories)
+			{
+				if (string.IsNullOrWhiteSpace(ignoredDir)) continue;
+				if (filePath.IndexOf(PathDelimiter + ignoredDir.Trim() + PathDelimiter) >= 0)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
 
 		public static bool TryReadWholeLine(string input, int matchIndex, out int lineNumber, out string lineContent)
 		{
@@ -395,6 +417,7 @@ namespace BOG.TextFileSearch
 			{
 				SaveFormState();
 			}
+			HydrateSearchMetricDropDown();
 			SetFormFromState(_FormStateObj.ActiveSearchMetric);
 			FormStateChanged = false;
 		}
@@ -422,8 +445,10 @@ namespace BOG.TextFileSearch
 				FormStateChanged = false;
 			}
 		}
+
 		private void SaveFormState()
 		{
+			_FormStateObj.UpdatedAtUtc = DateTime.UtcNow;
 			ObjectJsonSerializer<FormState>.SaveDocumentFormat(_FormStateObj, FormStateFile, true);
 			FormStateChanged = false;
 		}
@@ -449,6 +474,7 @@ namespace BOG.TextFileSearch
 				chkSearchAsRegex.Checked = _FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex;
 
 				_FormStateObj.ActiveSearchMetric = searchMetricName;
+				FormStateChanged = false;
 			}
 			else
 			{
@@ -460,27 +486,30 @@ namespace BOG.TextFileSearch
 		// If the name is not found, an error message is shown.
 		private void SetStateFromForm(string searchMetricName)
 		{
-			if (_FormStateObj.SearchMetricList.Keys.Contains(searchMetricName))
+			if (!_FormStateObj.SearchMetricList.Keys.Contains(searchMetricName))
 			{
-				_FormStateObj.SearchMetricList[searchMetricName].Folder = txtFolder.Text;
-				_FormStateObj.SearchMetricList[searchMetricName].IncludeSubfolders = chkRecurse.Checked;
-				_FormStateObj.SearchMetricList[searchMetricName].IncludeHidden = chkIncludeHidden.Checked;
-				_FormStateObj.SearchMetricList[searchMetricName].IncludeSystem = chkIncludeSystem.Checked;
-				_FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders = txtIgnoreFolders.Text;
-				_FormStateObj.SearchMetricList[searchMetricName].FilePatterns = txtFilePatterns.Text;
-				_FormStateObj.SearchMetricList[searchMetricName].SearchText = txtSearchPattern.Text;
-				_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
+				_FormStateObj.SearchMetricList.Add(searchMetricName, new SearchMetric());
+			}
+			_FormStateObj.SearchMetricList[searchMetricName].Folder = txtFolder.Text;
+			_FormStateObj.SearchMetricList[searchMetricName].IncludeSubfolders = chkRecurse.Checked;
+			_FormStateObj.SearchMetricList[searchMetricName].IncludeHidden = chkIncludeHidden.Checked;
+			_FormStateObj.SearchMetricList[searchMetricName].IncludeSystem = chkIncludeSystem.Checked;
+			_FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders = txtIgnoreFolders.Text;
+			_FormStateObj.SearchMetricList[searchMetricName].FilePatterns = txtFilePatterns.Text;
+			_FormStateObj.SearchMetricList[searchMetricName].SearchText = txtSearchPattern.Text;
+			_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
 
-				_FormStateObj.ActiveSearchMetric = searchMetricName;
-			}
-			else
+			_FormStateObj.ActiveSearchMetric = searchMetricName;
+		}
+
+		private void HydrateSearchMetricDropDown()
+		{
+			cbxSearchSetName.Items.Clear();
+			foreach (string searchMetricName in _FormStateObj.SearchMetricList.Keys)
 			{
-				MessageBox.Show(
-					$"The search metric configuration with name {searchMetricName} could not be found",
-					"Error",
-					MessageBoxButtons.OK,
-					MessageBoxIcon.Error);
+				cbxSearchSetName.Items.Add(searchMetricName);
 			}
+			cbxSearchSetName.SelectedItem = _FormStateObj.ActiveSearchMetric;
 		}
 
 		private void SaveStateOfForm()
@@ -522,32 +551,6 @@ namespace BOG.TextFileSearch
 			}
 		}
 
-#if FALSE
-				// ----------------------------
-
-				txtFolder.Text = formState.Folder;
-				chkRecurse.Checked = formState.IncludeSubfolders;
-				chkIncludeHidden.Checked = formState.IncludeHidden;
-				chkIncludeSystem.Checked = formState.IncludeSystem;
-				txtIgnoreFolders.Text = formState.IgnoredFolders;
-				txtFilePatterns.Text = formState.FilePatterns;
-				txtSearchPattern.Text = formState.SearchText;
-				chkSearchAsRegex.Checked = formState.SearchAsRegex;
-
-				// ----------------------------
-
-				txtFolder.Text = formState.Folder;
-				chkRecurse.Checked = formState.IncludeSubfolders;
-				chkIncludeHidden.Checked = formState.IncludeHidden;
-				chkIncludeSystem.Checked = formState.IncludeSystem;
-				txtIgnoreFolders.Text = formState.IgnoredFolders;
-				txtFilePatterns.Text = formState.FilePatterns;
-				txtSearchPattern.Text = formState.SearchText;
-				chkSearchAsRegex.Checked = formState.SearchAsRegex;
-
-				// ----------------------------
-#endif
-
 		private void AddToolStripMenuItemToContextMenuStrip(string text, EventHandler clickEvent)
 		{
 			ToolStripMenuItem menuItem = new(text);
@@ -560,9 +563,7 @@ namespace BOG.TextFileSearch
 		private void CopyFilePathToClipboard_Click(object? sender, EventArgs e)
 		{
 			if (lvwFound.SelectedItems.Count > 0)
-				Clipboard.SetText(
-					lvwFound.SelectedItems[0].SubItems[0]?.Text ?? string.Empty
-					);
+				Clipboard.SetText(lvwFound.SelectedItems[0].SubItems[0]?.Text ?? string.Empty);
 		}
 
 		private void CopyFormattedContentToClipboard_Click(object? sender, EventArgs e)
@@ -582,24 +583,16 @@ namespace BOG.TextFileSearch
 			Clipboard.SetText(formattedCopyContent);
 		}
 
-		private void SearchTextBox_KeyPress(object sender, KeyPressEventArgs e)
-		{
-			if (e.KeyChar == '\r')
-			{
-				Search(sender, e);
-			}
-		}
-
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
 		{
 			if (FormStateChanged)
 			{
-				switch (MessageBox.Show(
+				var answer = MessageBox.Show(
 					"If you application now, recent changes to the search arguments will be lost.\r\n\r\nDo you wish to save the changes?",
 					"Unsaved search form changes",
 					MessageBoxButtons.YesNoCancel,
-					MessageBoxIcon.Question)
-				)
+					MessageBoxIcon.Question);
+				switch (answer)
 				{
 					case DialogResult.Yes:
 						SaveStateOfForm();
@@ -616,12 +609,12 @@ namespace BOG.TextFileSearch
 
 			if (ConfigChanged)
 			{
-				switch (MessageBox.Show(
+				var answer = MessageBox.Show(
 					"If you application now, any recent changes to the configuration settings will be lost.\r\n\r\nDo you wish to save the changes?",
 					"Unsaved changes in configuration settings",
 					MessageBoxButtons.YesNoCancel,
-					MessageBoxIcon.Question)
-				)
+					MessageBoxIcon.Question);
+				switch (answer)
 				{
 					case DialogResult.Yes:
 						SaveConfigOptions();
@@ -643,6 +636,7 @@ namespace BOG.TextFileSearch
 			if (dialogResult == DialogResult.OK)
 			{
 				txtFolder.Text = folderBrowserDialog1.SelectedPath;
+				FormStateChanged = true;
 			}
 		}
 
@@ -653,7 +647,7 @@ namespace BOG.TextFileSearch
 				ListViewItem selectedItem = lvwFound.SelectedItems[0];
 
 				string filePath = selectedItem.SubItems[0].Text;
-				var ext= Path.GetExtension(filePath);
+				var ext = Path.GetExtension(filePath);
 				string lineNumber = selectedItem.SubItems[1].Text;
 
 				//ProcessStartInfo processStartInfo = new(_ConfigOptionsObj.EditorMappings[ext])
@@ -673,11 +667,6 @@ namespace BOG.TextFileSearch
 		}
 		#endregion
 
-		private void btnDirectory_Click(object sender, EventArgs e)
-		{
-
-		}
-
 		private void btnSearch_Click(object sender, EventArgs e)
 		{
 			btnSearch.Enabled = false;
@@ -688,6 +677,10 @@ namespace BOG.TextFileSearch
 			chkIncludeHidden.Enabled = false;
 			chkIncludeSystem.Enabled = false;
 			chkSearchAsRegex.Enabled = false;
+			btnClone.Enabled = false;
+			btnDelete.Enabled = false;
+			btnRename.Enabled = false;
+			btnLoad.Enabled = false;
 			this.Refresh();
 
 			Search(sender, e);
@@ -696,6 +689,10 @@ namespace BOG.TextFileSearch
 			txtIgnoreFolders.Enabled = true;
 			txtSearchPattern.Enabled = true;
 			btnFolder.Enabled = true;
+			btnLoad.Enabled = true;
+			btnRename.Enabled = true;
+			btnDelete.Enabled = true;
+			btnClone.Enabled = true;
 			chkIncludeHidden.Enabled = true;
 			chkIncludeSystem.Enabled = true;
 			chkSearchAsRegex.Enabled = true;
@@ -705,27 +702,134 @@ namespace BOG.TextFileSearch
 
 		private void btnLoad_Click(object sender, EventArgs e)
 		{
-
+			if (FormStateChanged)
+			{
+				var answer = MessageBox.Show(
+					"If you load another search metric configuration now, recent changes to the current search arguments will be lost.\r\n\r\nDo you wish to proceed with loading ?",
+					"There are unsaved changes",
+					MessageBoxButtons.YesNo,
+					MessageBoxIcon.Question);
+				switch (answer)
+				{
+					case DialogResult.Yes:
+						SetFormFromState(cbxSearchSetName.SelectedItem.ToString());
+						SaveFormState();
+						break;
+					default:
+						return;
+				}
+			}
 		}
 
-		private void button1_Click(object sender, EventArgs e)
+		private void btnSave_Click(object sender, EventArgs e)
 		{
-
+			if (FormStateChanged)
+			{
+				SetStateFromForm(_FormStateObj.ActiveSearchMetric);
+				SaveFormState();
+				FormStateChanged = false;
+			}
 		}
 
 		private void btnClone_Click(object sender, EventArgs e)
 		{
+			// check for collision with existing names in the dropdown, if there is a collision, show an error message and do not proceed with the renaming.
+			var tempNameFormat = $"{_FormStateObj.ActiveSearchMetric}_{{0:0#}}";
+			var tempName = string.Empty;
+			var index = 1;
+			while (index < 100)
+			{
+				tempName = string.Format(tempNameFormat, index);
+				if (!_FormStateObj.SearchMetricList.Keys.Contains(tempName)) break;
+				index++;
+			}
 
+			var f = new InputBox("Search set name", tempName);
+			var answer = f.ShowDialog();
+			switch (answer)
+			{
+				case DialogResult.OK:
+					if (_FormStateObj.SearchMetricList.Keys.Contains(f.Value))
+					{
+						MessageBox.Show(
+							"The name provided is already in use.  Try a different name",
+							"Conflict",
+							MessageBoxButtons.OK,
+							MessageBoxIcon.Information);
+						return;
+					}
+					SetStateFromForm(f.Value);
+					_FormStateObj.ActiveSearchMetric = f.Value;
+					SaveFormState();
+					HydrateSearchMetricDropDown();
+					break;
+				case DialogResult.Cancel:
+					break;
+			}
 		}
 
 		private void btnRename_Click(object sender, EventArgs e)
 		{
-
+			if (FormStateChanged)
+			{
+				MessageBox.Show("This search set content has changed but has not been saved.  Save or reload before attempting to rename it", "Error");
+				return;
+			}
+			var f = new InputBox("Replacement name for this search set", _FormStateObj.ActiveSearchMetric);
+			var answer = f.ShowDialog();
+			switch (answer)
+			{
+				case DialogResult.OK:
+					if (string.IsNullOrWhiteSpace(f.Value))
+					{
+						MessageBox.Show("The new search set name can not be blank.", "Error");
+						return;
+					}
+					if (_FormStateObj.SearchMetricList.ContainsKey(f.Value))
+					{
+						MessageBox.Show("This search set name is already used.", "Error");
+						return;
+					}
+					var existingSetName = _FormStateObj.ActiveSearchMetric;
+					_FormStateObj.SearchMetricList.Remove(existingSetName);
+					SetStateFromForm(f.Value);
+					_FormStateObj.ActiveSearchMetric = f.Value;
+					SaveFormState();
+					HydrateSearchMetricDropDown();
+					break;
+				case DialogResult.Cancel:
+					break;
+			}
 		}
 
 		private void btnDelete_Click(object sender, EventArgs e)
 		{
-
+			if (cbxSearchSetName.SelectedItem == null)
+			{
+				MessageBox.Show("No search metric configuration is selected to be deleted.", "Error");
+				return;
+			}
+			if (cbxSearchSetName.Items.Count < 2)
+			{
+				MessageBox.Show("At least one item must remain in the list.", "Error");
+				return;
+			}
+			var answer = MessageBox.Show(
+				$"Permanently removes the search set {_FormStateObj.ActiveSearchMetric}.  Continue ?",
+				"Warning",
+				MessageBoxButtons.OKCancel,
+				MessageBoxIcon.Warning);
+			switch (answer)
+			{
+				case DialogResult.OK:
+					_FormStateObj.SearchMetricList.Remove(_FormStateObj.ActiveSearchMetric);
+					_FormStateObj.ActiveSearchMetric = _FormStateObj.SearchMetricList.Keys.First();
+					HydrateSearchMetricDropDown();
+					SaveFormState();
+					break;
+				case DialogResult.Cancel:
+					break;
+			}
 		}
 
 		private void chkRecurse_CheckedChanged(object sender, EventArgs e)
@@ -770,7 +874,22 @@ namespace BOG.TextFileSearch
 
 		private void cbxSearchSetName_SelectedIndexChanged(object sender, EventArgs e)
 		{
-
+			if (FormStateChanged)
+			{
+				var answer = MessageBox.Show(
+					"If you load another search metric configuration now, recent changes to the current search arguments will be lost.\r\n\r\nDo you wish to proceed with loading ?",
+					"There are unsaved changes",
+					MessageBoxButtons.YesNo,
+					MessageBoxIcon.Question);
+				switch (answer)
+				{
+					case DialogResult.Yes:
+						break;
+					default:
+						return;
+				}
+			}
+			SetFormFromState(cbxSearchSetName.SelectedItem.ToString());
 		}
 	}
 }
