@@ -25,7 +25,7 @@ namespace BOG.TextFileSearch
 		private const int MaxItemsInlvwFound = 0;
 		private const int NumberOfBreakLineCharsToSkip = 2;
 
-		private static string PathDelimiter = "\\";	
+		private static string PathDelimiter = "\\";
 
 		private readonly Stopwatch Stopwatch = new();
 
@@ -56,7 +56,7 @@ namespace BOG.TextFileSearch
 		{
 			InitializeComponent();
 
-			PathDelimiter = Environment.OSVersion.Platform == PlatformID.Win32NT ? "\\" : "/";	
+			PathDelimiter = Environment.OSVersion.Platform == PlatformID.Win32NT ? "\\" : "/";
 			AppDataFolderPath = Path.Combine(
 				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 				"Bits Of Genius",
@@ -147,6 +147,8 @@ namespace BOG.TextFileSearch
 		private void SearchProcess(string folder, string search)
 		{
 			_AllFileNames.Clear();
+			_ListOfFileMatches.Clear();
+			_FileSearchResults.Clear();
 
 			if (ContainsIgnoredDirectories(folder, _IgnoredDirectories)) return;
 
@@ -233,7 +235,7 @@ namespace BOG.TextFileSearch
 								idx,
 								out lineNumber,
 								out lineContent);
-					if (! hasSuccess) break;
+					if (!hasSuccess) break;
 
 					if (fileNameToLineNumber[file.Key].Contains(lineNumber)) continue;
 
@@ -410,8 +412,8 @@ namespace BOG.TextFileSearch
 			{
 				SaveConfigOptions();
 			}
-			//			AddToolStripMenuItemToContextMenuStrip($"Open in {_ConfigOptionsObj.EditorPrograms[0].EditorName}", OpenInProgram_Click);
-
+			//AddToolStripMenuItemToContextMenuStrip($"Open in {_ConfigOptionsObj.EditorPrograms[0].EditorName}", OpenInProgram_Click);
+			AddToolStripMenuItemToContextMenuStrip($"Open in NotePad++", OpenInProgram_Click);
 			AddToolStripMenuItemToContextMenuStrip("Copy File Path", CopyFilePathToClipboard_Click);
 			AddToolStripMenuItemToContextMenuStrip("Copy Formatted", CopyFormattedContentToClipboard_Click);
 
@@ -481,6 +483,7 @@ namespace BOG.TextFileSearch
 
 				_FormStateObj.ActiveSearchMetric = searchMetricName;
 				FormStateChanged = false;
+				ObjectEnabling(Searching: false);
 			}
 			else
 			{
@@ -506,6 +509,8 @@ namespace BOG.TextFileSearch
 			_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
 
 			_FormStateObj.ActiveSearchMetric = searchMetricName;
+			FormStateChanged = false;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void HydrateSearchMetricDropDown()
@@ -641,10 +646,18 @@ namespace BOG.TextFileSearch
 
 			if (dialogResult == DialogResult.OK)
 			{
-				txtFolder.Text = folderBrowserDialog1.SelectedPath;
-				FormStateChanged = true;
+				FormStateChanged = txtFolder.Text == folderBrowserDialog1.SelectedPath;
+				if (FormStateChanged)
+				{
+					txtFolder.Text = folderBrowserDialog1.SelectedPath;
+					ObjectEnabling(Searching: false);
+				}
 			}
 		}
+
+		//private void OpenInProgram_Click(object? sender, EventArgs? e)
+		//{
+		//}
 
 		private void OpenInProgram_Click(object? sender, EventArgs? e)
 		{
@@ -664,7 +677,15 @@ namespace BOG.TextFileSearch
 				//	Arguments = TextEditorCommandLineArgumentsFormat.Replace("[LN]", lineNumber).Replace("[FP]", filePath)
 				//};
 
-				//Process.Start(processStartInfo);
+				ProcessStartInfo processStartInfo = new ProcessStartInfo
+				{
+					FileName = @"C:\Program Files\Notepad++\notepad++.exe",
+					UseShellExecute = false,
+					WorkingDirectory = Environment.CurrentDirectory,
+					Arguments = $"\"{filePath}\" -n{lineNumber}"
+				};
+
+				Process.Start(processStartInfo);
 			}
 			catch (Exception ex)
 			{
@@ -675,34 +696,28 @@ namespace BOG.TextFileSearch
 
 		private void btnSearch_Click(object sender, EventArgs e)
 		{
-			btnSearch.Enabled = false;
-			txtFilePatterns.Enabled = false;
-			txtIgnoreFolders.Enabled = false;
-			txtSearchPattern.Enabled = false;
-			btnFolder.Enabled = false;
-			chkIncludeHidden.Enabled = false;
-			chkIncludeSystem.Enabled = false;
-			chkSearchAsRegex.Enabled = false;
-			btnClone.Enabled = false;
-			btnDelete.Enabled = false;
-			btnRename.Enabled = false;
-			btnLoad.Enabled = false;
-			this.Refresh();
+			ObjectEnabling(Searching: true);
 
 			Search(sender, e);
 
-			txtFilePatterns.Enabled = true;
-			txtIgnoreFolders.Enabled = true;
-			txtSearchPattern.Enabled = true;
-			btnFolder.Enabled = true;
-			btnLoad.Enabled = true;
-			btnRename.Enabled = true;
-			btnDelete.Enabled = true;
-			btnClone.Enabled = true;
-			chkIncludeHidden.Enabled = true;
-			chkIncludeSystem.Enabled = true;
-			chkSearchAsRegex.Enabled = true;
-			btnSearch.Enabled = true;
+			ObjectEnabling(Searching: false);
+		}
+
+		private void ObjectEnabling(bool Searching)
+		{
+			txtFilePatterns.Enabled = !Searching;
+			txtIgnoreFolders.Enabled = !Searching;
+			txtSearchPattern.Enabled = !Searching;
+			btnFolder.Enabled = !Searching;
+			btnLoad.Enabled = !Searching && !FormStateChanged;
+			btnSave.Enabled = !Searching && FormStateChanged;
+			btnRename.Enabled = !Searching;
+			btnDelete.Enabled = !Searching;
+			btnClone.Enabled = !Searching;
+			chkIncludeHidden.Enabled = !Searching;
+			chkIncludeSystem.Enabled = !Searching;
+			chkSearchAsRegex.Enabled = !Searching;
+			btnSearch.Enabled = !Searching;
 			this.Refresh();
 		}
 
@@ -841,41 +856,49 @@ namespace BOG.TextFileSearch
 		private void chkRecurse_CheckedChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void chkIncludeHidden_CheckedChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void chkIncludeSystem_CheckedChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void chkSearchAsRegex_CheckedChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void txtFolder_TextChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void txtIgnoreFolders_TextChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void txtFilePatterns_TextChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void txtSearchPattern_TextChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
+			ObjectEnabling(Searching: false);
 		}
 
 		private void cbxSearchSetName_SelectedIndexChanged(object sender, EventArgs e)

@@ -237,6 +237,7 @@
 			// 
 			// chkSearchAsRegex
 			// 
+			chkSearchAsRegex.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 			chkSearchAsRegex.AutoSize = true;
 			chkSearchAsRegex.Location = new Point(764, 103);
 			chkSearchAsRegex.Name = "chkSearchAsRegex";
