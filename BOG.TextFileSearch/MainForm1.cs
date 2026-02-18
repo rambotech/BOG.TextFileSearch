@@ -935,18 +935,5 @@ namespace BOG.TextFileSearch
 			}
 			SetFormFromState(cbxSearchSetName.SelectedItem.ToString());
 		}
-
-		private void bgwSearch_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
-		{
-		}
-
-		private void bgwSearch_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
-		{
-
-		}
-
-		private void bgwSearch_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
-		{
-		}
 	}
 }
