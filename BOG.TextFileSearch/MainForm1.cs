@@ -1,8 +1,5 @@
 using System.Diagnostics;
-using System.Drawing.Drawing2D;
-using System.IO;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using BOG.SwissArmyKnife;
 using BOG.TextFileSearch.Entity;
@@ -44,7 +41,6 @@ namespace BOG.TextFileSearch
 		private ConfigOptions _ConfigOptionsObj = ConfigOptionsFactory.CreateDefaultObject();
 
 		private List<FileMatchInformation> _ListOfFileMatches = new();
-		private List<FileErrorInformation> _ListOfErrors = new();
 		private Dictionary<string, FileOccurrence> _FileSearchResults = new();
 		private List<string> _AllFileNames = new();
 		private string[] _FilePatterns = new string[1];
@@ -83,6 +79,8 @@ namespace BOG.TextFileSearch
 			}
 			FormStateFile = Path.Combine(AppDataFolderPath, FormStateFileName);
 			ConfigEditorFile = Path.Combine(AppDataFolderPath, ConfigEditorFileName);
+			var a = new AssemblyVersion(AssemblyVersion.AssemblySource.Calling);
+			this.Text = string.Format("{0} - v{1}, build: {2:dd-MMM-yyyy hh:mm:ss tt}", a.Name, a.Version, a.BuildDate);
 		}
 
 		private async void Search(object sender, EventArgs e)
@@ -170,11 +168,7 @@ namespace BOG.TextFileSearch
 				}
 				catch (Exception ex)
 				{
-					_ListOfErrors.Add(new FileErrorInformation
-					{
-						FileName = pattern,
-						Error = ex.InnerException?.Message ?? ex.Message
-					});
+					lvwErrors.Items.Add(new ListViewItem(new string[] { folder, ex.InnerException?.Message ?? ex.Message }));
 				}
 			}
 
@@ -251,9 +245,17 @@ namespace BOG.TextFileSearch
 			}
 			if (chkRecurse.Checked)
 			{
-				foreach (var subdir in Directory.GetDirectories(folder, "*", SearchOption.TopDirectoryOnly))
+				try
 				{
-					SearchProcess(subdir, search);
+					foreach (var subdir in Directory.GetDirectories(folder, "*", SearchOption.TopDirectoryOnly))
+					{
+						SearchProcess(subdir, search);
+					}
+				}
+				catch (Exception ex)
+				{
+					lvwErrors.Items.Add(new ListViewItem(
+						new string[] { folder, ex.InnerException?.Message ?? ex.Message }));
 				}
 			}
 		}
@@ -263,7 +265,6 @@ namespace BOG.TextFileSearch
 			lvwFound.Items.Clear();
 			lvwErrors.Items.Clear();
 			this.Refresh();
-
 			try
 			{
 				Stopwatch.Start();
@@ -288,7 +289,6 @@ namespace BOG.TextFileSearch
 			finally
 			{
 				UpdatelvwFound(_ListOfFileMatches);
-
 				Stopwatch.Stop();
 
 				lvwFound.AutoResizeColumn(0, ColumnHeaderAutoResizeStyle.HeaderSize);
@@ -732,6 +732,7 @@ namespace BOG.TextFileSearch
 			chkSearchAsRegex.Enabled = !Searching;
 			cbxSearchSetName.Enabled = !Searching;
 			btnSearch.Enabled = !Searching;
+
 			this.Refresh();
 		}
 
@@ -933,6 +934,19 @@ namespace BOG.TextFileSearch
 				}
 			}
 			SetFormFromState(cbxSearchSetName.SelectedItem.ToString());
+		}
+
+		private void bgwSearch_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+		{
+		}
+
+		private void bgwSearch_ProgressChanged(object sender, System.ComponentModel.ProgressChangedEventArgs e)
+		{
+
+		}
+
+		private void bgwSearch_RunWorkerCompleted(object sender, System.ComponentModel.RunWorkerCompletedEventArgs e)
+		{
 		}
 	}
 }
