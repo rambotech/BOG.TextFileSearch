@@ -48,9 +48,15 @@ namespace BOG.TextFileSearch
 		private int _TotalOccurrences = 0;
 		private bool _ReachedLimit = false;
 
+		private AssemblyVersion assemblyVersion = new(AssemblyVersion.AssemblySource.Entry);
+		private string RootFormTitle = "BOG Text File Search";
+
 		public MainForm()
 		{
 			InitializeComponent();
+			RootFormTitle = this.Text;
+			//this.Text = string.Format("{0}, {1}, {2}", RootFormTitle, assemblyVersion.Version, assemblyVersion.BuildDate);
+			this.Text = string.Format("{0} - v{1}, build: {2:dd-MMM-yyyy hh:mm:ss tt}", assemblyVersion.Name, assemblyVersion.Version, assemblyVersion.BuildDate); ;
 
 			PathDelimiter = Environment.OSVersion.Platform == PlatformID.Win32NT ? "\\" : "/";
 			AppDataFolderPath = Path.Combine(
@@ -79,8 +85,6 @@ namespace BOG.TextFileSearch
 			}
 			FormStateFile = Path.Combine(AppDataFolderPath, FormStateFileName);
 			ConfigEditorFile = Path.Combine(AppDataFolderPath, ConfigEditorFileName);
-			var a = new AssemblyVersion(AssemblyVersion.AssemblySource.Calling);
-			this.Text = string.Format("{0} - v{1}, build: {2:dd-MMM-yyyy hh:mm:ss tt}", a.Name, a.Version, a.BuildDate);
 		}
 
 		private async void Search(object sender, EventArgs e)

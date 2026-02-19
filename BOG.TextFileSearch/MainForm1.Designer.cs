@@ -28,6 +28,7 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
 			statusStrip1 = new StatusStrip();
 			toolStripStatusLabel1 = new ToolStripStatusLabel();
 			scMain = new SplitContainer();
@@ -391,6 +392,7 @@
 			ClientSize = new Size(1127, 543);
 			Controls.Add(scMain);
 			Controls.Add(statusStrip1);
+			Icon = (Icon)resources.GetObject("$this.Icon");
 			MinimumSize = new Size(100, 100);
 			Name = "MainForm";
 			Text = "BOG.TextFileSearch";
