@@ -12,12 +12,8 @@
     <RepositoryType>git</RepositoryType>
     <AssemblyVersion>1.0.0.1</AssemblyVersion>
     <FileVersion>1.0.0.1</FileVersion>
-    <ApplicationIcon>search.ico</ApplicationIcon>
+    <ApplicationIcon>searchForFileContent.ico</ApplicationIcon>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Content Include="search.ico" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Include="..\README.md">

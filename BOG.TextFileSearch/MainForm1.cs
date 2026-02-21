@@ -18,6 +18,7 @@ namespace BOG.TextFileSearch
 		private const string ResultsTimeFormat = "Results returned in: {0}";
 		private const string ErrorMessageFormat = "An error occurred while processing your search. Error: {0}";
 		private const string RegexTestString = "S";
+
 		private const int MaxLineSize = 250;
 		private const int MaxItemsInlvwFound = 0;
 		private const int NumberOfBreakLineCharsToSkip = 2;
@@ -35,27 +36,34 @@ namespace BOG.TextFileSearch
 		private string ConfigEditorFileHA256Hash = string.Empty;
 
 		private bool FormStateChanged = false;
+		private bool FormSavedChanged = false;
+
 		private bool ConfigChanged = false;
+		private bool ConfigSaved = false;
+		private bool Searching = false;
+
+		private int FoundCount = 0;
+		private int ErrorCount = 0;
 
 		private FormState _FormStateObj = FormStateFactory.CreateDefaultObject();
 		private ConfigOptions _ConfigOptionsObj = ConfigOptionsFactory.CreateDefaultObject();
 
 		private List<FileMatchInformation> _ListOfFileMatches = new();
 		private Dictionary<string, FileOccurrence> _FileSearchResults = new();
-		private List<string> _AllFileNames = new();
+		private List<FileInfo> _AllFileNames = new();
 		private string[] _FilePatterns = new string[1];
 		private string[] _IgnoredDirectories = new string[1];
 		private int _TotalOccurrences = 0;
 		private bool _ReachedLimit = false;
 
-		private AssemblyVersion assemblyVersion = new(AssemblyVersion.AssemblySource.Entry);
+		private AssemblyVersion assemblyVersion;
 		private string RootFormTitle = "BOG Text File Search";
 
 		public MainForm()
 		{
 			InitializeComponent();
 			RootFormTitle = this.Text;
-			//this.Text = string.Format("{0}, {1}, {2}", RootFormTitle, assemblyVersion.Version, assemblyVersion.BuildDate);
+			assemblyVersion = new(typeof(BOG.TextFileSearch.Program));
 			this.Text = string.Format("{0} - v{1}, build: {2:dd-MMM-yyyy hh:mm:ss tt}", assemblyVersion.Name, assemblyVersion.Version, assemblyVersion.BuildDate); ;
 
 			PathDelimiter = Environment.OSVersion.Platform == PlatformID.Win32NT ? "\\" : "/";
@@ -85,6 +93,60 @@ namespace BOG.TextFileSearch
 			}
 			FormStateFile = Path.Combine(AppDataFolderPath, FormStateFileName);
 			ConfigEditorFile = Path.Combine(AppDataFolderPath, ConfigEditorFileName);
+		}
+
+		private void MainForm_Load(object sender, EventArgs e)
+		{
+			lvwFound.View = View.Details;
+			lvwFound.FullRowSelect = true;
+			lvwFound.GridLines = true;
+
+			lvwFound.Columns.Add("File", 400, HorizontalAlignment.Left);
+			lvwFound.Columns.Add("Line", 100, HorizontalAlignment.Left);
+			lvwFound.Columns.Add("Match", 1200, HorizontalAlignment.Left);
+
+			lvwErrors.View = View.Details;
+			lvwErrors.FullRowSelect = true;
+			lvwErrors.GridLines = true;
+
+			lvwErrors.Columns.Add("File", 400, HorizontalAlignment.Left);
+			lvwErrors.Columns.Add("Error", 1300, HorizontalAlignment.Left);
+
+			ContextMenuStrip = new();
+
+			if (File.Exists(ConfigEditorFile))
+			{
+				LoadConfigOptions();
+			}
+			else
+			{
+				SaveConfigOptions();
+			}
+
+			ConfigOptionsFactory.MarkExisitngEditorPrograms(ref _ConfigOptionsObj);
+			foreach (var editorProgram in _ConfigOptionsObj.EditorPrograms)
+			{
+				editorProgram.EditorExists = File.Exists(editorProgram.ExeFile);
+				AddToolStripMenuItemToContextMenuStrip(
+					$"Open in {editorProgram.EditorName}",
+					$"{editorProgram.EditorName}",
+					editorProgram.EditorExists,
+					OpenInProgram_Click);
+			}
+			AddToolStripMenuItemToContextMenuStrip("Copy File Path", "Copy File Path", true, CopyFilePathToClipboard_Click);
+			AddToolStripMenuItemToContextMenuStrip("Copy Formatted", "Copy Formatted", true, CopyFormattedContentToClipboard_Click);
+
+			if (File.Exists(FormStateFile))
+			{
+				LoadFormState();
+			}
+			else
+			{
+				SaveFormState();
+			}
+			HydrateSearchMetricDropDown();
+			SetFormFromState(_FormStateObj.ActiveSearchMetric);
+			FormStateChanged = false;
 		}
 
 		private async void Search(object sender, EventArgs e)
@@ -160,28 +222,45 @@ namespace BOG.TextFileSearch
 				this.statusStrip1.Refresh();
 				try
 				{
-					_AllFileNames.AddRange(
-						Directory.GetFiles(folder, pattern, new EnumerationOptions
+					_AllFileNames.AddRange(new DirectoryInfo(folder).GetFiles(
+						pattern, new EnumerationOptions
 						{
 							MatchCasing = MatchCasing.PlatformDefault,
 							RecurseSubdirectories = false,
 							IgnoreInaccessible = true,
-							AttributesToSkip = (!chkIncludeHidden.Checked ? FileAttributes.Hidden : 0) | (!chkIncludeSystem.Checked ? FileAttributes.System : 0)
-						})
-					);
+							AttributesToSkip = 
+								(!chkIncludeHidden.Checked ? FileAttributes.Hidden : 0) | 
+								(!chkIncludeSystem.Checked ? FileAttributes.System : 0)
+						}
+					));
 				}
 				catch (Exception ex)
 				{
 					lvwErrors.Items.Add(new ListViewItem(new string[] { folder, ex.InnerException?.Message ?? ex.Message }));
+					ErrorCount++;
+					tabpErrors.Text = string.Format("Error ({0})", 0);
+					tabpErrors.Refresh();
 				}
 			}
 
-			foreach (string filePath in _AllFileNames)
+			foreach (var fileInfo in _AllFileNames)
 			{
-				if (string.IsNullOrEmpty(filePath) || ContainsIgnoredDirectories(filePath, _IgnoredDirectories))
+				if (string.IsNullOrEmpty(fileInfo.FullName) || ContainsIgnoredDirectories(fileInfo.FullName, _IgnoredDirectories))
+					continue;
+				if (chkCreated.Checked && (
+					dtpCreatedStartDate.Value <= fileInfo.CreationTime && 
+					fileInfo.CreationTime >= dtpCreatedStartDate.Value))
+					continue;
+				if (chkUpdated.Checked && (
+					dtpCreatedStartDate.Value <= fileInfo.CreationTime &&
+					fileInfo.CreationTime >= dtpCreatedStartDate.Value))
+					continue;
+				if (chkAccessed.Checked && (
+					dtpCreatedStartDate.Value <= fileInfo.CreationTime &&
+					fileInfo.CreationTime >= dtpCreatedStartDate.Value))
 					continue;
 
-				string fileContent = File.ReadAllTextAsync(filePath).GetAwaiter().GetResult();
+				string fileContent = File.ReadAllTextAsync(fileInfo.FullName).GetAwaiter().GetResult();
 				List<int> indexes = new();
 				if (chkSearchAsRegex.Checked)
 				{
@@ -204,9 +283,12 @@ namespace BOG.TextFileSearch
 
 				if (indexes.Count > 0)
 				{
-					_FileSearchResults.Add(filePath, new FileOccurrence(fileContent, indexes));
+					_FileSearchResults.Add(fileInfo.FullName, new FileOccurrence(fileContent, indexes));
 				}
 			}
+			FoundCount += _TotalOccurrences;
+			tabpFound.Text = string.Format("Found: {0}", FoundCount);
+			tabpFound.Refresh();
 
 			foreach (KeyValuePair<string, FileOccurrence> file in _FileSearchResults)
 			{
@@ -266,9 +348,17 @@ namespace BOG.TextFileSearch
 
 		private void Search(string folder, string search)
 		{
+			FoundCount = 0;
+			// tabpFound.Text = string.Format("Found ({0})", 0);
+			tabpFound.Text = "Found ({0})";
 			lvwFound.Items.Clear();
+
+			ErrorCount = 0;
+			tabpErrors.Text = string.Format("Error ({0})", 0);
+			tabpErrors.Text = "Error";
 			lvwErrors.Items.Clear();
 			this.Refresh();
+
 			try
 			{
 				Stopwatch.Start();
@@ -389,60 +479,6 @@ namespace BOG.TextFileSearch
 
 		#region Events
 
-		private async void OnFormLoad(object sender, EventArgs e)
-		{
-			lvwFound.View = View.Details;
-			lvwFound.FullRowSelect = true;
-			lvwFound.GridLines = true;
-
-			lvwFound.Columns.Add("File", 400, HorizontalAlignment.Left);
-			lvwFound.Columns.Add("Line", 100, HorizontalAlignment.Left);
-			lvwFound.Columns.Add("Match", 1200, HorizontalAlignment.Left);
-
-			lvwErrors.View = View.Details;
-			lvwErrors.FullRowSelect = true;
-			lvwErrors.GridLines = true;
-
-			lvwErrors.Columns.Add("File", 400, HorizontalAlignment.Left);
-			lvwErrors.Columns.Add("Error", 1300, HorizontalAlignment.Left);
-
-			ContextMenuStrip = new();
-
-			if (File.Exists(ConfigEditorFile))
-			{
-				LoadConfigOptions();
-			}
-			else
-			{
-				SaveConfigOptions();
-			}
-
-			ConfigOptionsFactory.MarkExisitngEditorPrograms(ref _ConfigOptionsObj);
-			foreach (var editorProgram in _ConfigOptionsObj.EditorPrograms)
-			{
-				editorProgram.EditorExists = File.Exists(editorProgram.ExeFile);
-				AddToolStripMenuItemToContextMenuStrip(
-					$"Open in {editorProgram.EditorName}",
-					$"{editorProgram.EditorName}",
-					editorProgram.EditorExists,
-					OpenInProgram_Click);
-			}
-			AddToolStripMenuItemToContextMenuStrip("Copy File Path", "Copy File Path", true, CopyFilePathToClipboard_Click);
-			AddToolStripMenuItemToContextMenuStrip("Copy Formatted", "Copy Formatted", true, CopyFormattedContentToClipboard_Click);
-
-			if (File.Exists(FormStateFile))
-			{
-				LoadFormState();
-			}
-			else
-			{
-				SaveFormState();
-			}
-			HydrateSearchMetricDropDown();
-			SetFormFromState(_FormStateObj.ActiveSearchMetric);
-			FormStateChanged = false;
-		}
-
 		private void LoadConfigOptions()
 		{
 			if (File.Exists(ConfigEditorFile))
@@ -486,17 +522,31 @@ namespace BOG.TextFileSearch
 			if (_FormStateObj.SearchMetricList.Keys.Contains(searchMetricName))
 			{
 				txtFolder.Text = _FormStateObj.SearchMetricList[searchMetricName].Folder;
+				txtIgnoreFolders.Text = _FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders;
+				txtFilePatterns.Text = _FormStateObj.SearchMetricList[searchMetricName].FilePatterns;
+
 				chkRecurse.Checked = _FormStateObj.SearchMetricList[searchMetricName].IncludeSubfolders;
 				chkIncludeHidden.Checked = _FormStateObj.SearchMetricList[searchMetricName].IncludeHidden;
 				chkIncludeSystem.Checked = _FormStateObj.SearchMetricList[searchMetricName].IncludeSystem;
-				txtIgnoreFolders.Text = _FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders;
-				txtFilePatterns.Text = _FormStateObj.SearchMetricList[searchMetricName].FilePatterns;
+
+				chkCreated.Checked = _FormStateObj.SearchMetricList[searchMetricName].FilterOnCreated;
+				dtpCreatedStartDate.Value = _FormStateObj.SearchMetricList[searchMetricName].FilterCreatedBeginDate == DateTime.MinValue ? DateTime.Now : _FormStateObj.SearchMetricList[searchMetricName].FilterCreatedBeginDate;
+				dtpCreatedEndDate.Value = _FormStateObj.SearchMetricList[searchMetricName].FilterCreatedEndDate == DateTime.MaxValue ? DateTime.Now : _FormStateObj.SearchMetricList[searchMetricName].FilterCreatedEndDate;
+
+				chkUpdated.Checked = _FormStateObj.SearchMetricList[searchMetricName].FilterOnUpdated;
+				dtpUpdatedStartDate.Value = _FormStateObj.SearchMetricList[searchMetricName].FilterUpdatedBeginDate == DateTime.MinValue ? DateTime.Now : _FormStateObj.SearchMetricList[searchMetricName].FilterUpdatedBeginDate;
+				dtpUpdatedEndDate.Value = _FormStateObj.SearchMetricList[searchMetricName].FilterUpdatedEndDate == DateTime.MaxValue ? DateTime.Now : _FormStateObj.SearchMetricList[searchMetricName].FilterUpdatedEndDate;
+
+				chkAccessed.Checked = _FormStateObj.SearchMetricList[searchMetricName].FilterOnAccessed;
+				dtpAccessedStartDate.Value = _FormStateObj.SearchMetricList[searchMetricName].FilterAccessedBeginDate == DateTime.MinValue ? DateTime.Now : _FormStateObj.SearchMetricList[searchMetricName].FilterAccessedBeginDate;
+				dtpAccessedEndDate.Value = _FormStateObj.SearchMetricList[searchMetricName].FilterAccessedEndDate == DateTime.MaxValue ? DateTime.Now : _FormStateObj.SearchMetricList[searchMetricName].FilterAccessedEndDate;
+
 				txtSearchPattern.Text = _FormStateObj.SearchMetricList[searchMetricName].SearchText;
 				chkSearchAsRegex.Checked = _FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex;
 
 				_FormStateObj.ActiveSearchMetric = searchMetricName;
 				FormStateChanged = false;
-				ObjectEnabling(Searching: false);
+				ObjectEnabling();
 			}
 			else
 			{
@@ -513,17 +563,31 @@ namespace BOG.TextFileSearch
 				_FormStateObj.SearchMetricList.Add(searchMetricName, new SearchMetric());
 			}
 			_FormStateObj.SearchMetricList[searchMetricName].Folder = txtFolder.Text;
+			_FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders = txtIgnoreFolders.Text;
+			_FormStateObj.SearchMetricList[searchMetricName].FilePatterns = txtFilePatterns.Text;
+
 			_FormStateObj.SearchMetricList[searchMetricName].IncludeSubfolders = chkRecurse.Checked;
 			_FormStateObj.SearchMetricList[searchMetricName].IncludeHidden = chkIncludeHidden.Checked;
 			_FormStateObj.SearchMetricList[searchMetricName].IncludeSystem = chkIncludeSystem.Checked;
-			_FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders = txtIgnoreFolders.Text;
-			_FormStateObj.SearchMetricList[searchMetricName].FilePatterns = txtFilePatterns.Text;
+
+			_FormStateObj.SearchMetricList[searchMetricName].FilterOnCreated = chkCreated.Checked;
+			_FormStateObj.SearchMetricList[searchMetricName].FilterCreatedBeginDate = dtpCreatedStartDate.Value;
+			_FormStateObj.SearchMetricList[searchMetricName].FilterCreatedEndDate = dtpCreatedEndDate.Value;
+
+			_FormStateObj.SearchMetricList[searchMetricName].FilterOnUpdated = chkUpdated.Checked;
+			_FormStateObj.SearchMetricList[searchMetricName].FilterUpdatedBeginDate = dtpUpdatedStartDate.Value;
+			_FormStateObj.SearchMetricList[searchMetricName].FilterUpdatedEndDate = dtpUpdatedEndDate.Value;
+
+			_FormStateObj.SearchMetricList[searchMetricName].FilterOnAccessed = chkAccessed.Checked;
+			_FormStateObj.SearchMetricList[searchMetricName].FilterAccessedBeginDate = dtpAccessedStartDate.Value;
+			_FormStateObj.SearchMetricList[searchMetricName].FilterAccessedEndDate = dtpAccessedEndDate.Value;
+
 			_FormStateObj.SearchMetricList[searchMetricName].SearchText = txtSearchPattern.Text;
 			_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
 
 			_FormStateObj.ActiveSearchMetric = searchMetricName;
 			FormStateChanged = false;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
 		}
 
 		private void HydrateSearchMetricDropDown()
@@ -546,14 +610,29 @@ namespace BOG.TextFileSearch
 			if (_FormStateObj.SearchMetricList.Keys.Contains(searchMetricName))
 			{
 				_FormStateObj.SearchMetricList[searchMetricName].Folder = txtFolder.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders = txtIgnoreFolders.Text;
+				_FormStateObj.SearchMetricList[searchMetricName].FilePatterns = txtFilePatterns.Text;
+
 				_FormStateObj.SearchMetricList[searchMetricName].IncludeSubfolders = chkRecurse.Checked;
 				_FormStateObj.SearchMetricList[searchMetricName].IncludeHidden = chkIncludeHidden.Checked;
 				_FormStateObj.SearchMetricList[searchMetricName].IncludeSystem = chkIncludeSystem.Checked;
-				_FormStateObj.SearchMetricList[searchMetricName].IgnoredFolders = txtIgnoreFolders.Text;
-				_FormStateObj.SearchMetricList[searchMetricName].FilePatterns = txtFilePatterns.Text;
+
+				_FormStateObj.SearchMetricList[searchMetricName].FilterOnCreated = chkCreated.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].FilterCreatedBeginDate = dtpCreatedStartDate.Value;
+				_FormStateObj.SearchMetricList[searchMetricName].FilterCreatedEndDate = dtpCreatedEndDate.Value;
+
+				_FormStateObj.SearchMetricList[searchMetricName].FilterOnUpdated = chkUpdated.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].FilterUpdatedBeginDate = dtpUpdatedStartDate.Value;
+				_FormStateObj.SearchMetricList[searchMetricName].FilterUpdatedEndDate = dtpUpdatedEndDate.Value;
+
+				_FormStateObj.SearchMetricList[searchMetricName].FilterOnAccessed = chkAccessed.Checked;
+				_FormStateObj.SearchMetricList[searchMetricName].FilterAccessedBeginDate = dtpAccessedStartDate.Value;
+				_FormStateObj.SearchMetricList[searchMetricName].FilterAccessedEndDate = dtpAccessedEndDate.Value;
+
 				_FormStateObj.SearchMetricList[searchMetricName].SearchText = txtSearchPattern.Text;
 				_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
 				_FormStateObj.ActiveSearchMetric = searchMetricName;
+
 				_FormStateObj.UpdatedAtUtc = DateTime.UtcNow;
 			}
 			else
@@ -561,13 +640,28 @@ namespace BOG.TextFileSearch
 				var o = new SearchMetric
 				{
 					Folder = txtFolder.Text,
+					IgnoredFolders = txtIgnoreFolders.Text,
+					FilePatterns = txtFilePatterns.Text,
+
 					IncludeSubfolders = chkRecurse.Checked,
 					IncludeHidden = chkIncludeHidden.Checked,
 					IncludeSystem = chkIncludeSystem.Checked,
-					IgnoredFolders = txtIgnoreFolders.Text,
-					FilePatterns = txtFilePatterns.Text,
+
+					FilterOnCreated = chkCreated.Checked,
+					FilterCreatedBeginDate = dtpCreatedStartDate.Value,
+					FilterCreatedEndDate = dtpCreatedEndDate.Value,
+
+					FilterOnUpdated = chkUpdated.Checked,
+					FilterUpdatedBeginDate = dtpUpdatedStartDate.Value,
+					FilterUpdatedEndDate = dtpUpdatedEndDate.Value,
+
+					FilterOnAccessed = chkAccessed.Checked,
+					FilterAccessedBeginDate = dtpAccessedStartDate.Value,
+					FilterAccessedEndDate = dtpAccessedEndDate.Value,
+
 					SearchText = txtSearchPattern.Text,
 					SearchAsRegex = chkSearchAsRegex.Checked,
+
 					CreatedAtUtc = DateTime.UtcNow
 				};
 				_FormStateObj.SearchMetricList.Add(searchMetricName, o);
@@ -667,14 +761,10 @@ namespace BOG.TextFileSearch
 				if (FormStateChanged)
 				{
 					txtFolder.Text = folderBrowserDialog1.SelectedPath;
-					ObjectEnabling(Searching: false);
+					ObjectEnabling();
 				}
 			}
 		}
-
-		//private void OpenInProgram_Click(object? sender, EventArgs? e)
-		//{
-		//}
 
 		private void OpenInProgram_Click(object? sender, EventArgs? e)
 		{
@@ -712,27 +802,44 @@ namespace BOG.TextFileSearch
 
 		private void btnSearch_Click(object sender, EventArgs e)
 		{
-			ObjectEnabling(Searching: true);
+			Searching = true;
+			ObjectEnabling();
 
 			Search(sender, e);
 
-			ObjectEnabling(Searching: false);
+			Searching = false;
+			ObjectEnabling();
 		}
 
-		private void ObjectEnabling(bool Searching)
+		private void ObjectEnabling()
 		{
-			txtFilePatterns.Enabled = !Searching;
-			txtIgnoreFolders.Enabled = !Searching;
-			txtSearchPattern.Enabled = !Searching;
 			btnFolder.Enabled = !Searching;
+			txtIgnoreFolders.Enabled = !Searching;
+			txtFilePatterns.Enabled = !Searching;
+			txtSearchPattern.Enabled = !Searching;
+
 			btnLoad.Enabled = !Searching && FormStateChanged;
 			btnSave.Enabled = !Searching && FormStateChanged;
 			btnRename.Enabled = !Searching;
 			btnDelete.Enabled = !Searching;
 			btnClone.Enabled = !Searching;
+
 			chkRecurse.Enabled = !Searching;
 			chkIncludeHidden.Enabled = !Searching;
 			chkIncludeSystem.Enabled = !Searching;
+
+			chkCreated.Enabled = !Searching;
+			dtpCreatedStartDate.Enabled = !Searching && chkCreated.Checked;
+			dtpCreatedEndDate.Enabled = !Searching && chkCreated.Checked;
+
+			chkUpdated.Enabled = !Searching;
+			dtpUpdatedStartDate.Enabled = !Searching && chkUpdated.Checked;
+			dtpUpdatedEndDate.Enabled = !Searching && chkUpdated.Checked;
+
+			chkAccessed.Enabled = !Searching;
+			dtpAccessedStartDate.Enabled = !Searching && chkAccessed.Checked;
+			dtpAccessedEndDate.Enabled = !Searching && chkAccessed.Checked;
+
 			chkSearchAsRegex.Enabled = !Searching;
 			cbxSearchSetName.Enabled = !Searching;
 			btnSearch.Enabled = !Searching;
@@ -875,49 +982,67 @@ namespace BOG.TextFileSearch
 		private void chkRecurse_CheckedChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
 		}
 
 		private void chkIncludeHidden_CheckedChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
 		}
 
 		private void chkIncludeSystem_CheckedChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
+		}
+
+		private void chkCreated_CheckStateChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+			ObjectEnabling();
+		}
+
+		private void chkUpdated_CheckStateChanged(object sender, EventArgs e)
+		{
+			FormStateChanged = true;
+			dtpCreatedStartDate.Enabled = (chkCreated.Checked);
+			dtpCreatedEndDate.Enabled = (chkCreated.Checked);
+		}
+
+		private void chkAccessed_CheckStateChanged(object sender, EventArgs e)
+		{
+
 		}
 
 		private void chkSearchAsRegex_CheckedChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
 		}
 
 		private void txtFolder_TextChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
 		}
 
 		private void txtIgnoreFolders_TextChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
 		}
 
 		private void txtFilePatterns_TextChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
 		}
 
 		private void txtSearchPattern_TextChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			ObjectEnabling(Searching: false);
+			ObjectEnabling();
 		}
 
 		private void cbxSearchSetName_SelectedIndexChanged(object sender, EventArgs e)
@@ -938,6 +1063,36 @@ namespace BOG.TextFileSearch
 				}
 			}
 			SetFormFromState(cbxSearchSetName.SelectedItem.ToString());
+		}
+
+		private void dtpCreatedStartDate_ValueChanged(object sender, EventArgs e)
+		{
+
+		}
+
+		private void dtpCreatedEndDate_ValueChanged(object sender, EventArgs e)
+		{
+
+		}
+
+		private void dtpUpdatedStartDate_ValueChanged(object sender, EventArgs e)
+		{
+
+		}
+
+		private void dtpUpdatedEndDate_ValueChanged(object sender, EventArgs e)
+		{
+
+		}
+
+		private void dtpAccessedStartDate_ValueChanged(object sender, EventArgs e)
+		{
+
+		}
+
+		private void dtpAccessedEndDate_ValueChanged(object sender, EventArgs e)
+		{
+
 		}
 	}
 }

@@ -43,6 +43,51 @@ namespace BOG.TextFileSearch.Entity
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public bool FilterOnCreated { get; set; } = false;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public DateTime FilterCreatedBeginDate { get; set; } = DateTime.MinValue;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public DateTime FilterCreatedEndDate { get; set; } = DateTime.MaxValue;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public bool FilterOnUpdated { get; set; } = false;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public DateTime FilterUpdatedBeginDate { get; set; } = DateTime.MinValue;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public DateTime FilterUpdatedEndDate { get; set; } = DateTime.MaxValue;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public bool FilterOnAccessed { get; set; } = false;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public DateTime FilterAccessedBeginDate { get; set; } = DateTime.MinValue;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
+			Required = Required.Default)]
+		public DateTime FilterAccessedEndDate { get; set; } = DateTime.MaxValue;
+
+		[JsonProperty(
+			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Always)]
 		public string SearchText { get; set; } = string.Empty;
 
@@ -98,6 +143,15 @@ namespace BOG.TextFileSearch.Entity
 				IncludeHidden = false,
 				IncludeSystem = false,
 				IncludeSubfolders = true,
+				FilterOnCreated = false,
+				FilterCreatedBeginDate = DateTime.MinValue,
+				FilterCreatedEndDate = DateTime.MaxValue,
+				FilterOnUpdated = false,
+				FilterUpdatedBeginDate = DateTime.MinValue,
+				FilterUpdatedEndDate = DateTime.MaxValue,
+				FilterOnAccessed = false,
+				FilterAccessedBeginDate = DateTime.MinValue,
+				FilterAccessedEndDate = DateTime.MaxValue,
 				SearchText = "TODO",
 				SearchAsRegex = false,
 			};
