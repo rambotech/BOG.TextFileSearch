@@ -34,13 +34,13 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Always)]
-		public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+		public DateTime Created { get; set; } = DateTime.UtcNow;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			NullValueHandling = NullValueHandling.Include,
 			Required = Required.Default)]
-		public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+		public DateTime Updated { get; set; } = DateTime.UtcNow;
 	}
 
 	[JsonObject(MemberSerialization.OptIn)]
@@ -54,13 +54,13 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Always)]
-		public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+		public DateTime Created { get; set; } = DateTime.UtcNow;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			NullValueHandling = NullValueHandling.Include,
 			Required = Required.Default)]
-		public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+		public DateTime Updated { get; set; } = DateTime.UtcNow;
 	}
 
 	public static class ConfigOptionsFactory
@@ -77,8 +77,8 @@ namespace BOG.TextFileSearch.Entity
 						ExeFile = "C:\\Windows\\notepad.exe",
 						CommandLineArguments = "\"#{target_file}#\"",
 						Extensions = new string[] { "*" },
-						CreatedAtUtc = DateTime.UtcNow,
-						UpdatedAtUtc = DateTime.UtcNow
+						Created = DateTime.UtcNow,
+						Updated = DateTime.UtcNow
 					},
 					new EditorProgram
 					{
@@ -86,16 +86,16 @@ namespace BOG.TextFileSearch.Entity
 						ExeFile = "C:\\Program Files\\Notepad++\\notepad++.exe",
 						CommandLineArguments = "\"#{target_file}#\" -n#{line_number}# -multiInst",
 						Extensions = new string[] { ".txt", ".log", ".md", ".xml", ".xsl", ".xslt", ".xaml", "json", ".cs", ".sql" },
-						CreatedAtUtc = DateTime.UtcNow,
-						UpdatedAtUtc = DateTime.UtcNow
+						Created = DateTime.UtcNow,
+						Updated = DateTime.UtcNow
 					},
 					new EditorProgram
 					{
 						EditorName = "SQl Server Management Studio",
 						ExeFile = "C:\\Program Files (x86)\\Microsoft SQL Server Management Studio 20\\Common7\\IDE\\SSMS.exe",
 						CommandLineArguments = "\"#{target_file}#\"",
-						CreatedAtUtc = DateTime.UtcNow,
-						UpdatedAtUtc = DateTime.UtcNow
+						Created = DateTime.UtcNow,
+						Updated = DateTime.UtcNow
 					}
 				}
 			};

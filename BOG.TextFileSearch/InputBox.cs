@@ -20,8 +20,6 @@ namespace BOG.TextFileSearch
 	{
 		private string _defaultValue = string.Empty;
 		private int _timeoutSeconds = 0;
-		private bool _formIsClosing = false;
-		private bool _formTimeout = false;
 
 		private Stopwatch _StopWatch = new Stopwatch();
 		private int _RemainingSeconds = -1;

@@ -411,6 +411,7 @@
 			txtIgnoreFolders.Size = new Size(1019, 23);
 			txtIgnoreFolders.TabIndex = 28;
 			txtIgnoreFolders.Tag = "Ignore Folders";
+			txtIgnoreFolders.TextChanged += txtIgnoreFolders_TextChanged;
 			// 
 			// lblIgnoreFolders
 			// 
@@ -442,6 +443,7 @@
 			txtSearchPattern.Size = new Size(1019, 23);
 			txtSearchPattern.TabIndex = 32;
 			txtSearchPattern.Tag = "Search Pattern";
+			txtSearchPattern.TextChanged += txtSearchPattern_TextChanged;
 			// 
 			// lblSearchPattern
 			// 
@@ -461,6 +463,7 @@
 			txtFilePatterns.Size = new Size(1019, 23);
 			txtFilePatterns.TabIndex = 30;
 			txtFilePatterns.Tag = "File Patterns";
+			txtFilePatterns.TextChanged += txtFilePatterns_TextChanged;
 			// 
 			// lblFilePatterns
 			// 
@@ -481,6 +484,7 @@
 			txtFolder.Size = new Size(1019, 23);
 			txtFolder.TabIndex = 26;
 			txtFolder.Tag = "Folder";
+			txtFolder.TextChanged += txtFolder_TextChanged;
 			// 
 			// btnFolder
 			// 

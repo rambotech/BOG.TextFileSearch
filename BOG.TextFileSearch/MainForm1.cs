@@ -8,8 +8,8 @@ namespace BOG.TextFileSearch
 {
 	public partial class MainForm : Form
 	{
-		private const string FormStateFileName = "state_persist.json";
-		private const string ConfigEditorFileName = "config.json";
+		private const string FormStateFileName = "SearchMetricSets.json";
+		private const string ConfigEditorFileName = "Config.json";
 
 		private const string ResultsFoundFormat = "Occurrences found: {0}. Showing {1} lines.";
 
@@ -36,17 +36,18 @@ namespace BOG.TextFileSearch
 		private string ConfigEditorFileHA256Hash = string.Empty;
 
 		private bool FormStateChanged = false;
-		private bool FormSavedChanged = false;
 
 		private bool ConfigChanged = false;
-		private bool ConfigSaved = false;
 		private bool Searching = false;
 
 		private int FoundCount = 0;
 		private int ErrorCount = 0;
 
 		private FormState _FormStateObj = FormStateFactory.CreateDefaultObject();
+		private DateTime _FormStateFileUpdated = DateTime.MinValue;
+
 		private ConfigOptions _ConfigOptionsObj = ConfigOptionsFactory.CreateDefaultObject();
+		private DateTime _ConfigOptionsFileUpdated = DateTime.MinValue;
 
 		private List<FileMatchInformation> _ListOfFileMatches = new();
 		private Dictionary<string, FileOccurrence> _FileSearchResults = new();
@@ -111,8 +112,6 @@ namespace BOG.TextFileSearch
 
 			lvwErrors.Columns.Add("File", 400, HorizontalAlignment.Left);
 			lvwErrors.Columns.Add("Error", 1300, HorizontalAlignment.Left);
-
-			ContextMenuStrip = new();
 
 			if (File.Exists(ConfigEditorFile))
 			{
@@ -228,8 +227,8 @@ namespace BOG.TextFileSearch
 							MatchCasing = MatchCasing.PlatformDefault,
 							RecurseSubdirectories = false,
 							IgnoreInaccessible = true,
-							AttributesToSkip = 
-								(!chkIncludeHidden.Checked ? FileAttributes.Hidden : 0) | 
+							AttributesToSkip =
+								(!chkIncludeHidden.Checked ? FileAttributes.Hidden : 0) |
 								(!chkIncludeSystem.Checked ? FileAttributes.System : 0)
 						}
 					));
@@ -238,7 +237,7 @@ namespace BOG.TextFileSearch
 				{
 					lvwErrors.Items.Add(new ListViewItem(new string[] { folder, ex.InnerException?.Message ?? ex.Message }));
 					ErrorCount++;
-					tabpErrors.Text = string.Format("Error ({0})", 0);
+					tabpErrors.Text = $"Error ({ErrorCount})";
 					tabpErrors.Refresh();
 				}
 			}
@@ -248,16 +247,16 @@ namespace BOG.TextFileSearch
 				if (string.IsNullOrEmpty(fileInfo.FullName) || ContainsIgnoredDirectories(fileInfo.FullName, _IgnoredDirectories))
 					continue;
 				if (chkCreated.Checked && (
-					dtpCreatedStartDate.Value <= fileInfo.CreationTime && 
-					fileInfo.CreationTime >= dtpCreatedStartDate.Value))
+					dtpCreatedStartDate.Value >=  fileInfo.CreationTime ||
+					fileInfo.CreationTime <= dtpCreatedStartDate.Value))
 					continue;
 				if (chkUpdated.Checked && (
-					dtpCreatedStartDate.Value <= fileInfo.CreationTime &&
-					fileInfo.CreationTime >= dtpCreatedStartDate.Value))
+					dtpUpdatedStartDate.Value >= fileInfo.CreationTime ||
+					fileInfo.CreationTime <= dtpUpdatedStartDate.Value))
 					continue;
 				if (chkAccessed.Checked && (
-					dtpCreatedStartDate.Value <= fileInfo.CreationTime &&
-					fileInfo.CreationTime >= dtpCreatedStartDate.Value))
+					dtpAccessedStartDate.Value >= fileInfo.CreationTime ||
+					fileInfo.CreationTime <= dtpAccessedStartDate.Value))
 					continue;
 
 				string fileContent = File.ReadAllTextAsync(fileInfo.FullName).GetAwaiter().GetResult();
@@ -286,9 +285,12 @@ namespace BOG.TextFileSearch
 					_FileSearchResults.Add(fileInfo.FullName, new FileOccurrence(fileContent, indexes));
 				}
 			}
-			FoundCount += _TotalOccurrences;
-			tabpFound.Text = string.Format("Found: {0}", FoundCount);
-			tabpFound.Refresh();
+			if (FoundCount != _TotalOccurrences)
+			{
+				tabpFound.Text = $"Found: ({_TotalOccurrences})";
+				tabpFound.Refresh();
+			}
+			FoundCount = _TotalOccurrences;
 
 			foreach (KeyValuePair<string, FileOccurrence> file in _FileSearchResults)
 			{
@@ -342,6 +344,9 @@ namespace BOG.TextFileSearch
 				{
 					lvwErrors.Items.Add(new ListViewItem(
 						new string[] { folder, ex.InnerException?.Message ?? ex.Message }));
+					ErrorCount++;
+					tabpErrors.Text = $"Error ({ErrorCount})";
+					tabpErrors.Refresh();
 				}
 			}
 		}
@@ -349,13 +354,11 @@ namespace BOG.TextFileSearch
 		private void Search(string folder, string search)
 		{
 			FoundCount = 0;
-			// tabpFound.Text = string.Format("Found ({0})", 0);
-			tabpFound.Text = "Found ({0})";
+			tabpFound.Text = $"Found ({FoundCount})";
 			lvwFound.Items.Clear();
 
 			ErrorCount = 0;
-			tabpErrors.Text = string.Format("Error ({0})", 0);
-			tabpErrors.Text = "Error";
+			tabpErrors.Text = $"Error ({ErrorCount})";
 			lvwErrors.Items.Clear();
 			this.Refresh();
 
@@ -485,6 +488,7 @@ namespace BOG.TextFileSearch
 			{
 				_ConfigOptionsObj = ObjectJsonSerializer<ConfigOptions>.LoadDocumentFormat(ConfigEditorFile);
 				ConfigChanged = false;
+				_ConfigOptionsFileUpdated = _ConfigOptionsObj.Updated;
 			}
 		}
 
@@ -505,7 +509,7 @@ namespace BOG.TextFileSearch
 
 		private void SaveFormState()
 		{
-			_FormStateObj.UpdatedAtUtc = DateTime.UtcNow;
+			_FormStateObj.Updated = DateTime.Now;
 			ObjectJsonSerializer<FormState>.SaveDocumentFormat(_FormStateObj, FormStateFile, true);
 			FormStateChanged = false;
 		}
@@ -585,13 +589,31 @@ namespace BOG.TextFileSearch
 			_FormStateObj.SearchMetricList[searchMetricName].SearchText = txtSearchPattern.Text;
 			_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
 
+			_FormStateObj.SearchMetricList[searchMetricName].Updated = DateTime.Now;
+
 			_FormStateObj.ActiveSearchMetric = searchMetricName;
-			FormStateChanged = false;
+
+			FormStateChanged = true;
 			ObjectEnabling();
 		}
 
 		private void HydrateSearchMetricDropDown()
 		{
+			if (FormStateChanged)
+			{
+				var answer = MessageBox.Show(
+					"Recent changes to the current search arguments will be lost.\r\n\r\nDo you wish to proceed with loading ?",
+					"There are unsaved changes",
+					MessageBoxButtons.YesNo,
+					MessageBoxIcon.Question);
+				switch (answer)
+				{
+					case DialogResult.Yes:
+						break;
+					default:
+						return;
+				}
+			}
 			cbxSearchSetName.Items.Clear();
 			foreach (string searchMetricName in _FormStateObj.SearchMetricList.Keys)
 			{
@@ -631,9 +653,10 @@ namespace BOG.TextFileSearch
 
 				_FormStateObj.SearchMetricList[searchMetricName].SearchText = txtSearchPattern.Text;
 				_FormStateObj.SearchMetricList[searchMetricName].SearchAsRegex = chkSearchAsRegex.Checked;
-				_FormStateObj.ActiveSearchMetric = searchMetricName;
 
-				_FormStateObj.UpdatedAtUtc = DateTime.UtcNow;
+				_FormStateObj.SearchMetricList[searchMetricName].Updated = DateTime.Now;
+
+				_FormStateObj.ActiveSearchMetric = searchMetricName;
 			}
 			else
 			{
@@ -662,10 +685,11 @@ namespace BOG.TextFileSearch
 					SearchText = txtSearchPattern.Text,
 					SearchAsRegex = chkSearchAsRegex.Checked,
 
-					CreatedAtUtc = DateTime.UtcNow
+					Created = DateTime.Now
 				};
 				_FormStateObj.SearchMetricList.Add(searchMetricName, o);
-				_FormStateObj.UpdatedAtUtc = DateTime.UtcNow;
+				FormStateChanged = true;
+				_FormStateObj.Updated = DateTime.Now;
 			}
 		}
 
@@ -679,6 +703,16 @@ namespace BOG.TextFileSearch
 			};
 			menuItem.Click += (s, e) => { clickEvent(handler, e); };
 
+			if (ContextMenuStrip == null)
+			{
+				ContextMenuStrip = new ContextMenuStrip();
+				lvwFound.ContextMenuStrip = ContextMenuStrip;
+				ContextMenuStrip.ShowImageMargin = false;
+				ContextMenuStrip.ShowCheckMargin = false;
+				ContextMenuStrip.Font = new Font(ContextMenuStrip.Font.FontFamily, 10);
+				ContextMenuStrip.RenderMode = ToolStripRenderMode.System;
+				ContextMenuStrip.BackColor = Color.White;
+			}
 			ContextMenuStrip.Items.Add(menuItem);
 		}
 
@@ -718,7 +752,6 @@ namespace BOG.TextFileSearch
 				{
 					case DialogResult.Yes:
 						SaveStateOfForm();
-						SaveFormState();
 						break;
 					case DialogResult.No:
 						break;
@@ -727,6 +760,10 @@ namespace BOG.TextFileSearch
 						break;
 				}
 				if (e.Cancel) return;
+			}
+			if (FormStateHelper.FormStateChanged(_FormStateObj))
+			{
+				SaveFormState();
 			}
 
 			if (ConfigChanged)
@@ -757,10 +794,11 @@ namespace BOG.TextFileSearch
 
 			if (dialogResult == DialogResult.OK)
 			{
-				FormStateChanged = txtFolder.Text != folderBrowserDialog1.SelectedPath;
+				FormStateChanged |= txtFolder.Text != folderBrowserDialog1.SelectedPath;
 				if (FormStateChanged)
 				{
 					txtFolder.Text = folderBrowserDialog1.SelectedPath;
+					FormStateChanged = true;
 					ObjectEnabling();
 				}
 			}
@@ -859,7 +897,10 @@ namespace BOG.TextFileSearch
 				switch (answer)
 				{
 					case DialogResult.Yes:
-						SetFormFromState(cbxSearchSetName.SelectedItem.ToString());
+						if (cbxSearchSetName.SelectedItem != null)
+						{
+							SetFormFromState((string)cbxSearchSetName.SelectedItem);
+						}
 						SaveFormState();
 						break;
 					default:
@@ -875,6 +916,7 @@ namespace BOG.TextFileSearch
 				SetStateFromForm(_FormStateObj.ActiveSearchMetric);
 				SaveFormState();
 				FormStateChanged = false;
+				ObjectEnabling();
 			}
 		}
 
@@ -1006,13 +1048,13 @@ namespace BOG.TextFileSearch
 		private void chkUpdated_CheckStateChanged(object sender, EventArgs e)
 		{
 			FormStateChanged = true;
-			dtpCreatedStartDate.Enabled = (chkCreated.Checked);
-			dtpCreatedEndDate.Enabled = (chkCreated.Checked);
+			ObjectEnabling();
 		}
 
 		private void chkAccessed_CheckStateChanged(object sender, EventArgs e)
 		{
-
+			FormStateChanged = true;
+			ObjectEnabling();
 		}
 
 		private void chkSearchAsRegex_CheckedChanged(object sender, EventArgs e)
@@ -1062,37 +1104,85 @@ namespace BOG.TextFileSearch
 						return;
 				}
 			}
-			SetFormFromState(cbxSearchSetName.SelectedItem.ToString());
+			if (cbxSearchSetName.SelectedItem != null && (string)cbxSearchSetName.SelectedItem != _FormStateObj.ActiveSearchMetric)
+			{
+				_FormStateObj.ActiveSearchMetric = (string)cbxSearchSetName.SelectedItem;
+				SetFormFromState(_FormStateObj.ActiveSearchMetric);
+				_FormStateObj.Updated = DateTime.Now;
+			}
 		}
 
 		private void dtpCreatedStartDate_ValueChanged(object sender, EventArgs e)
 		{
-
+			dtpCreatedStartDate.Value = dtpCreatedStartDate.Value.Date;
+			dtpCreatedEndDate.Value = dtpCreatedEndDate.Value.Date;
+			FormStateChanged = true;
+			ObjectEnabling();
+			if (dtpCreatedStartDate.Value > dtpCreatedEndDate.Value)
+			{
+				MessageBox.Show("The start date can not be greater than the end date.", "Warning");
+				return;
+			}
 		}
 
 		private void dtpCreatedEndDate_ValueChanged(object sender, EventArgs e)
 		{
-
+			dtpCreatedStartDate.Value = dtpCreatedStartDate.Value.Date;
+			dtpCreatedEndDate.Value = dtpCreatedEndDate.Value.Date;
+			FormStateChanged = true;
+			if (dtpCreatedEndDate.Value < dtpCreatedStartDate.Value)
+			{
+				MessageBox.Show("The end date can not be less than the start date.", "Warning");
+				dtpCreatedEndDate.Value = dtpCreatedStartDate.Value;
+				return;
+			}
 		}
 
 		private void dtpUpdatedStartDate_ValueChanged(object sender, EventArgs e)
 		{
-
+			dtpUpdatedStartDate.Value = dtpUpdatedStartDate.Value.Date;
+			dtpUpdatedStartDate.Value = dtpUpdatedStartDate.Value.Date;
+			FormStateChanged = true;
+			if (dtpUpdatedStartDate.Value > dtpUpdatedEndDate.Value)
+			{
+				MessageBox.Show("The start date can not be greater than the end date.", "Warning");
+				dtpUpdatedStartDate.Value = dtpUpdatedEndDate.Value;
+				return;
+			}
 		}
 
 		private void dtpUpdatedEndDate_ValueChanged(object sender, EventArgs e)
 		{
-
+			dtpUpdatedStartDate.Value = dtpUpdatedStartDate.Value.Date;
+			dtpUpdatedStartDate.Value = dtpUpdatedStartDate.Value.Date;
+			if (dtpUpdatedEndDate.Value < dtpUpdatedStartDate.Value)
+			{
+				MessageBox.Show("The end date can not be less than the start date.", "Warning");
+				dtpUpdatedEndDate.Value = dtpUpdatedStartDate.Value;
+				return;
+			}
 		}
 
 		private void dtpAccessedStartDate_ValueChanged(object sender, EventArgs e)
 		{
-
+			dtpAccessedStartDate.Value = dtpAccessedStartDate.Value.Date;
+			dtpAccessedStartDate.Value = dtpAccessedStartDate.Value.Date;
+			if (dtpAccessedStartDate.Value > dtpAccessedEndDate.Value)
+			{
+				MessageBox.Show("The start date can not be greater than the end date.", "Warning");
+				dtpAccessedStartDate.Value = dtpAccessedEndDate.Value;
+				return;
+			}
 		}
 
 		private void dtpAccessedEndDate_ValueChanged(object sender, EventArgs e)
 		{
-
+			if (dtpAccessedEndDate.Value < dtpAccessedStartDate.Value)
+			{
+				MessageBox.Show("The end date can not be less than the start date.", "Warning");
+				dtpAccessedEndDate.Value = dtpAccessedStartDate.Value;
+				return;
+			}
 		}
 	}
 }

@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
+﻿using System.Text.Json;
+using BOG.SwissArmyKnife.Extensions;
 using Newtonsoft.Json;
 
 namespace BOG.TextFileSearch.Entity
@@ -49,12 +45,12 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Default)]
-		public DateTime FilterCreatedBeginDate { get; set; } = DateTime.MinValue;
+		public DateTime FilterCreatedBeginDate { get; set; } = DateTime.MinValue.Date;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Default)]
-		public DateTime FilterCreatedEndDate { get; set; } = DateTime.MaxValue;
+		public DateTime FilterCreatedEndDate { get; set; } = DateTime.MaxValue.Date;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
@@ -64,12 +60,12 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Default)]
-		public DateTime FilterUpdatedBeginDate { get; set; } = DateTime.MinValue;
+		public DateTime FilterUpdatedBeginDate { get; set; } = DateTime.MinValue.Date;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Default)]
-		public DateTime FilterUpdatedEndDate { get; set; } = DateTime.MaxValue;
+		public DateTime FilterUpdatedEndDate { get; set; } = DateTime.MaxValue.Date;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
@@ -79,12 +75,12 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Default)]
-		public DateTime FilterAccessedBeginDate { get; set; } = DateTime.MinValue;
+		public DateTime FilterAccessedBeginDate { get; set; } = DateTime.MinValue.Date;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Default)]
-		public DateTime FilterAccessedEndDate { get; set; } = DateTime.MaxValue;
+		public DateTime FilterAccessedEndDate { get; set; } = DateTime.MaxValue.Date;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
@@ -99,12 +95,12 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Always)]
-		public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+		public DateTime Created { get; set; } = DateTime.Now;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.AllowNull)]
-		public DateTime? UpdatedAtUtc { get; set; }
+		public DateTime? Updated { get; set; }
 	}
 
 	[JsonObject(MemberSerialization.OptIn)]
@@ -123,12 +119,12 @@ namespace BOG.TextFileSearch.Entity
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.Always)]
-		public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+		public DateTime Created { get; set; } = DateTime.Now;
 
 		[JsonProperty(
 			ObjectCreationHandling = ObjectCreationHandling.Replace,
 			Required = Required.AllowNull)]
-		public DateTime? UpdatedAtUtc { get; set; } = null;
+		public DateTime? Updated { get; set; } = null;
 	}
 
 	public static class FormStateFactory
@@ -160,9 +156,27 @@ namespace BOG.TextFileSearch.Entity
 			{
 				ActiveSearchMetric = "(Default)",
 				SearchMetricList = new Dictionary<string, SearchMetric> { { "(Default)", defaultSearchMetric } },
-				CreatedAtUtc = DateTime.UtcNow,
-				UpdatedAtUtc = null
+				Created = DateTime.Now,
+				Updated = null
 			};
+			return result;
+		}
+	}
+
+	public static class FormStateHelper
+	{
+		public static bool FormStateChanged(FormState formState)
+		{
+			// get the latest create date or update date of every SerchMetric in the FormState object
+			var searchMetricsLatestDate =
+				(formState.SearchMetricList.Values.Select(x => x.Created).Max())
+				.Latest(new DateTime[] { formState.SearchMetricList.Values.Select(x => x.Updated).Max() ?? DateTime.MinValue });
+
+			// get the latest create date or update date of the FormState object.
+			var formStateLatestDate = formState.Created.Latest(new DateTime[] { formState.Updated ?? DateTime.MinValue });
+
+			var result = searchMetricsLatestDate > formStateLatestDate;
+
 			return result;
 		}
 	}
