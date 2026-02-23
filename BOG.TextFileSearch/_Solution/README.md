@@ -1,6 +1,8 @@
 # BOG.TextFileSearch
 
-Inspired by JustAnOtherDev/FindIn. Not a fork: it adds ...
+Not a fork, but inspired by JustAnOtherDev/FindIn
+
+This app adds ...
 - Error handling to skip inaccessible folders and/or files.
 - Ability to save search parameters as named searches for reuse in a dropdown.
 
@@ -8,6 +10,9 @@ Winform using .NET 9.0.
 
 ---
 Version History:
+
+1.0.1.1 -- 22 Feb 2026
+- Misc bug fixes for storage of form state.
 
 1.0.1.0 -- 20 Feb 2026
 - Added optional search filter for file time range.
