@@ -40,6 +40,7 @@
 			btnLoad = new Button();
 			cbxSearchSetName = new ComboBox();
 			lblSearchSetName = new Label();
+			btnCancel = new Button();
 			chkAccessed = new CheckBox();
 			dtpAccessedEndDate = new DateTimePicker();
 			label3 = new Label();
@@ -142,6 +143,7 @@
 			// 
 			// splitContainer1.Panel2
 			// 
+			splitContainer1.Panel2.Controls.Add(btnCancel);
 			splitContainer1.Panel2.Controls.Add(chkAccessed);
 			splitContainer1.Panel2.Controls.Add(dtpAccessedEndDate);
 			splitContainer1.Panel2.Controls.Add(label3);
@@ -244,6 +246,18 @@
 			lblSearchSetName.Size = new Size(96, 15);
 			lblSearchSetName.TabIndex = 20;
 			lblSearchSetName.Text = "Search Set Name";
+			// 
+			// btnCancel
+			// 
+			btnCancel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+			btnCancel.Enabled = false;
+			btnCancel.Location = new Point(951, 163);
+			btnCancel.Name = "btnCancel";
+			btnCancel.Size = new Size(164, 38);
+			btnCancel.TabIndex = 53;
+			btnCancel.Text = "Cancel";
+			btnCancel.UseVisualStyleBackColor = true;
+			btnCancel.Click += btnCancel_Click;
 			// 
 			// chkAccessed
 			// 
@@ -501,7 +515,7 @@
 			btnSearch.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 			btnSearch.Location = new Point(951, 119);
 			btnSearch.Name = "btnSearch";
-			btnSearch.Size = new Size(164, 63);
+			btnSearch.Size = new Size(164, 38);
 			btnSearch.TabIndex = 36;
 			btnSearch.Text = "&Search";
 			btnSearch.UseVisualStyleBackColor = true;
@@ -650,5 +664,6 @@
 		private Label label3;
 		private DateTimePicker dtpAccessedStartDate;
 		private Label label4;
+		private Button btnCancel;
 	}
 }

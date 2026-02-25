@@ -11,6 +11,9 @@ Winform using .NET 9.0.
 ---
 Version History:
 
+1.0.2.0 -- 24 Feb 2026
+- Added ability to cancel search before completion.
+
 1.0.1.1 -- 22 Feb 2026
 - Misc bug fixes for storage of form state.
 

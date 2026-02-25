@@ -39,7 +39,7 @@ namespace BOG.TextFileSearch
 
 		private bool ConfigChanged = false;
 		private bool Searching = false;
-
+		private bool StopRequested = false;
 		private int FoundCount = 0;
 		private int ErrorCount = 0;
 
@@ -209,6 +209,7 @@ namespace BOG.TextFileSearch
 
 		private void SearchProcess(string folder, string search)
 		{
+			Application.DoEvents();
 			_AllFileNames.Clear();
 			_ListOfFileMatches.Clear();
 			_FileSearchResults.Clear();
@@ -217,6 +218,7 @@ namespace BOG.TextFileSearch
 
 			foreach (string pattern in _FilePatterns)
 			{
+				if (StopRequested) break;
 				toolStripStatusLabel1.Text = $"Loading file list {pattern} in {folder}";
 				this.statusStrip1.Refresh();
 				try
@@ -244,10 +246,11 @@ namespace BOG.TextFileSearch
 
 			foreach (var fileInfo in _AllFileNames)
 			{
+				if (StopRequested) break;
 				if (string.IsNullOrEmpty(fileInfo.FullName) || ContainsIgnoredDirectories(fileInfo.FullName, _IgnoredDirectories))
 					continue;
 				if (chkCreated.Checked && (
-					dtpCreatedStartDate.Value >=  fileInfo.CreationTime ||
+					dtpCreatedStartDate.Value >= fileInfo.CreationTime ||
 					fileInfo.CreationTime <= dtpCreatedStartDate.Value))
 					continue;
 				if (chkUpdated.Checked && (
@@ -294,6 +297,7 @@ namespace BOG.TextFileSearch
 
 			foreach (KeyValuePair<string, FileOccurrence> file in _FileSearchResults)
 			{
+				if (StopRequested) break;
 				if (_ReachedLimit)
 					break;
 
@@ -303,6 +307,7 @@ namespace BOG.TextFileSearch
 
 				foreach (int idx in file.Value.MatchIndexes)
 				{
+					if (StopRequested) break;
 					if (MaxItemsInlvwFound > 0 && _ListOfFileMatches.Count > MaxItemsInlvwFound)
 					{
 						_ReachedLimit = true;
@@ -326,12 +331,12 @@ namespace BOG.TextFileSearch
 					fileNameToLineNumber[file.Key].Add(lineNumber);
 				}
 			}
-			if (_ListOfFileMatches.Count > 0)
+			if (!StopRequested && _ListOfFileMatches.Count > 0)
 			{
 				UpdatelvwFound(_ListOfFileMatches);
 				_ListOfFileMatches.Clear();
 			}
-			if (chkRecurse.Checked)
+			if (!StopRequested && chkRecurse.Checked)
 			{
 				try
 				{
@@ -372,7 +377,10 @@ namespace BOG.TextFileSearch
 				_ReachedLimit = false;
 				_TotalOccurrences = 0;
 
-				SearchProcess(folder, search);
+				if (!StopRequested)
+				{
+					SearchProcess(folder, search);
+				}
 			}
 			catch (Exception ex)
 			{
@@ -391,7 +399,15 @@ namespace BOG.TextFileSearch
 				lvwFound.AutoResizeColumn(0, ColumnHeaderAutoResizeStyle.HeaderSize);
 				lvwFound.AutoResizeColumn(1, ColumnHeaderAutoResizeStyle.HeaderSize);
 
-				toolStripStatusLabel1.Text = $"Done ... {string.Format(ResultsFoundFormat, _TotalOccurrences, lvwFound.Items.Count.ToString())} ... {UpdateResultsReturnedLabelWithStopwatchElapsedTime()}";
+			}
+			if (StopRequested)
+			{
+				toolStripStatusLabel1.Text = $"Cancelled ... {string.Format(ResultsFoundFormat, _TotalOccurrences, lvwFound.Items.Count.ToString())} ... {UpdateResultsReturnedLabelWithStopwatchElapsedTime()}";
+				this.statusStrip1.Refresh();
+			}
+			else
+			{
+				toolStripStatusLabel1.Text = $"Completed ... {string.Format(ResultsFoundFormat, _TotalOccurrences, lvwFound.Items.Count.ToString())} ... {UpdateResultsReturnedLabelWithStopwatchElapsedTime()}";
 				this.statusStrip1.Refresh();
 			}
 		}
@@ -840,14 +856,23 @@ namespace BOG.TextFileSearch
 
 		private void btnSearch_Click(object sender, EventArgs e)
 		{
+			StopRequested = false;
 			Searching = true;
 			ObjectEnabling();
 
 			Search(sender, e);
-
+			StopRequested = false;
 			Searching = false;
 			ObjectEnabling();
 		}
+
+		private void btnCancel_Click(object sender, EventArgs e)
+		{
+			StopRequested = true;
+			this.btnCancel.Enabled = false;
+			this.Refresh();
+		}
+
 
 		private void ObjectEnabling()
 		{
@@ -881,6 +906,7 @@ namespace BOG.TextFileSearch
 			chkSearchAsRegex.Enabled = !Searching;
 			cbxSearchSetName.Enabled = !Searching;
 			btnSearch.Enabled = !Searching;
+			btnCancel.Enabled = Searching;
 
 			this.Refresh();
 		}
