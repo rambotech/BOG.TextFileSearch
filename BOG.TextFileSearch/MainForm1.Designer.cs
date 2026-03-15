@@ -40,6 +40,8 @@
 			btnLoad = new Button();
 			cbxSearchSetName = new ComboBox();
 			lblSearchSetName = new Label();
+			lblIgnoreFolder = new Label();
+			lblFolders = new Label();
 			btnCancel = new Button();
 			chkAccessed = new CheckBox();
 			dtpAccessedEndDate = new DateTimePicker();
@@ -59,14 +61,12 @@
 			chkIncludeSystem = new CheckBox();
 			chkIncludeHidden = new CheckBox();
 			txtIgnoreFolders = new TextBox();
-			lblIgnoreFolders = new Label();
 			chkSearchAsRegex = new CheckBox();
 			txtSearchPattern = new TextBox();
 			lblSearchPattern = new Label();
 			txtFilePatterns = new TextBox();
 			lblFilePatterns = new Label();
 			txtFolder = new TextBox();
-			btnFolder = new Button();
 			btnSearch = new Button();
 			chkRecurse = new CheckBox();
 			tabcResults = new TabControl();
@@ -143,6 +143,8 @@
 			// 
 			// splitContainer1.Panel2
 			// 
+			splitContainer1.Panel2.Controls.Add(lblIgnoreFolder);
+			splitContainer1.Panel2.Controls.Add(lblFolders);
 			splitContainer1.Panel2.Controls.Add(btnCancel);
 			splitContainer1.Panel2.Controls.Add(chkAccessed);
 			splitContainer1.Panel2.Controls.Add(dtpAccessedEndDate);
@@ -162,14 +164,12 @@
 			splitContainer1.Panel2.Controls.Add(chkIncludeSystem);
 			splitContainer1.Panel2.Controls.Add(chkIncludeHidden);
 			splitContainer1.Panel2.Controls.Add(txtIgnoreFolders);
-			splitContainer1.Panel2.Controls.Add(lblIgnoreFolders);
 			splitContainer1.Panel2.Controls.Add(chkSearchAsRegex);
 			splitContainer1.Panel2.Controls.Add(txtSearchPattern);
 			splitContainer1.Panel2.Controls.Add(lblSearchPattern);
 			splitContainer1.Panel2.Controls.Add(txtFilePatterns);
 			splitContainer1.Panel2.Controls.Add(lblFilePatterns);
 			splitContainer1.Panel2.Controls.Add(txtFolder);
-			splitContainer1.Panel2.Controls.Add(btnFolder);
 			splitContainer1.Panel2.Controls.Add(btnSearch);
 			splitContainer1.Panel2.Controls.Add(chkRecurse);
 			splitContainer1.Size = new Size(1127, 245);
@@ -246,6 +246,24 @@
 			lblSearchSetName.Size = new Size(96, 15);
 			lblSearchSetName.TabIndex = 20;
 			lblSearchSetName.Text = "Search Set Name";
+			// 
+			// lblIgnoreFolder
+			// 
+			lblIgnoreFolder.AutoSize = true;
+			lblIgnoreFolder.Location = new Point(9, 35);
+			lblIgnoreFolder.Name = "lblIgnoreFolder";
+			lblIgnoreFolder.Size = new Size(82, 15);
+			lblIgnoreFolder.TabIndex = 55;
+			lblIgnoreFolder.Text = "Ignore Folders";
+			// 
+			// lblFolders
+			// 
+			lblFolders.AutoSize = true;
+			lblFolders.Location = new Point(35, 6);
+			lblFolders.Name = "lblFolders";
+			lblFolders.Size = new Size(45, 15);
+			lblFolders.TabIndex = 54;
+			lblFolders.Text = "Folders";
 			// 
 			// btnCancel
 			// 
@@ -426,16 +444,7 @@
 			txtIgnoreFolders.TabIndex = 28;
 			txtIgnoreFolders.Tag = "Ignore Folders";
 			txtIgnoreFolders.TextChanged += txtIgnoreFolders_TextChanged;
-			// 
-			// lblIgnoreFolders
-			// 
-			lblIgnoreFolders.AutoSize = true;
-			lblIgnoreFolders.Location = new Point(9, 35);
-			lblIgnoreFolders.Name = "lblIgnoreFolders";
-			lblIgnoreFolders.Size = new Size(82, 15);
-			lblIgnoreFolders.TabIndex = 27;
-			lblIgnoreFolders.Tag = "Ignore Folders";
-			lblIgnoreFolders.Text = "Ignore Folders";
+			txtIgnoreFolders.DoubleClick += txtIgnoreFolders_DoubleClick;
 			// 
 			// chkSearchAsRegex
 			// 
@@ -494,21 +503,11 @@
 			txtFolder.Location = new Point(96, 3);
 			txtFolder.MinimumSize = new Size(600, 23);
 			txtFolder.Name = "txtFolder";
-			txtFolder.ReadOnly = true;
 			txtFolder.Size = new Size(1019, 23);
 			txtFolder.TabIndex = 26;
 			txtFolder.Tag = "Folder";
 			txtFolder.TextChanged += txtFolder_TextChanged;
-			// 
-			// btnFolder
-			// 
-			btnFolder.Location = new Point(5, 3);
-			btnFolder.Name = "btnFolder";
-			btnFolder.Size = new Size(87, 23);
-			btnFolder.TabIndex = 25;
-			btnFolder.Text = "&Folder";
-			btnFolder.UseVisualStyleBackColor = true;
-			btnFolder.Click += btnFolder_Click;
+			txtFolder.DoubleClick += txtFolder_DoubleClick;
 			// 
 			// btnSearch
 			// 
@@ -587,6 +586,7 @@
 			// 
 			// MainForm
 			// 
+			AllowDrop = true;
 			AutoScaleDimensions = new SizeF(7F, 15F);
 			AutoScaleMode = AutoScaleMode.Font;
 			ClientSize = new Size(1127, 791);
@@ -650,7 +650,6 @@
 		private TextBox txtFilePatterns;
 		private Label lblFilePatterns;
 		private TextBox txtFolder;
-		private Button btnFolder;
 		private Button btnSearch;
 		private CheckBox chkRecurse;
 		private CheckBox chkCreated;
@@ -665,5 +664,7 @@
 		private DateTimePicker dtpAccessedStartDate;
 		private Label label4;
 		private Button btnCancel;
+		private Label lblIgnoreFolder;
+		private Label lblFolders;
 	}
 }

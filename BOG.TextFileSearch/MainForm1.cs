@@ -49,6 +49,8 @@ namespace BOG.TextFileSearch
 		private ConfigOptions _ConfigOptionsObj = ConfigOptionsFactory.CreateDefaultObject();
 		private DateTime _ConfigOptionsFileUpdated = DateTime.MinValue;
 
+		private List<string> _FolderDejaVu = new List<string>();
+
 		private List<FileMatchInformation> _ListOfFileMatches = new();
 		private Dictionary<string, FileOccurrence> _FileSearchResults = new();
 		private List<FileInfo> _AllFileNames = new();
@@ -176,10 +178,35 @@ namespace BOG.TextFileSearch
 			var filePatterns = txtFilePatterns.Text.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
 			if (filePatterns.Contains("*.*")) return;
 
-			if (!Directory.Exists(txtFolder.Text))
-				return;
+			_FolderDejaVu.Clear();
+			FoundCount = 0;
+			tabpFound.Text = $"Found ({FoundCount})";
+			lvwFound.Items.Clear();
 
-			Search(txtFolder.Text, txtSearchPattern.Text);
+			ErrorCount = 0;
+			tabpErrors.Text = $"Error ({ErrorCount})";
+			lvwErrors.Items.Clear();
+			this.Refresh();
+			foreach (var thisFolderSet in txtFolder.Text.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+			{
+				if (Directory.Exists(thisFolderSet))
+				{
+					Search(thisFolderSet, txtSearchPattern.Text);
+					continue;
+				}
+				if (thisFolderSet.IndexOfAny(new char[] { '*', '?' }) >= 0)
+				{
+					var folderItems = Directory.GetDirectories(
+						Path.GetDirectoryName(thisFolderSet),
+						Path.GetFileName(thisFolderSet),
+						new EnumerationOptions { RecurseSubdirectories = false });
+					foreach (var thisFolderItem in folderItems)
+					{
+						Search(thisFolderItem, txtSearchPattern.Text);
+					}
+				}
+			}
+			_FolderDejaVu.Clear();
 		}
 
 		public bool RegexPatternIsValid(string pattern)
@@ -213,6 +240,7 @@ namespace BOG.TextFileSearch
 			_AllFileNames.Clear();
 			_ListOfFileMatches.Clear();
 			_FileSearchResults.Clear();
+			_FolderDejaVu.Add(folder);
 
 			if (ContainsIgnoredDirectories(folder, _IgnoredDirectories)) return;
 
@@ -358,14 +386,7 @@ namespace BOG.TextFileSearch
 
 		private void Search(string folder, string search)
 		{
-			FoundCount = 0;
-			tabpFound.Text = $"Found ({FoundCount})";
-			lvwFound.Items.Clear();
-
-			ErrorCount = 0;
-			tabpErrors.Text = $"Error ({ErrorCount})";
-			lvwErrors.Items.Clear();
-			this.Refresh();
+			if (_FolderDejaVu.Contains(folder)) return;
 
 			try
 			{
@@ -804,22 +825,39 @@ namespace BOG.TextFileSearch
 			}
 		}
 
-		private void btnFolder_Click(object sender, EventArgs e)
+#if TRUE
+		private void btnFolders_Click(object sender, EventArgs e)
 		{
-			DialogResult dialogResult = folderBrowserDialog1.ShowDialog();
-
-			if (dialogResult == DialogResult.OK)
+			var f = new FolderTool(this.txtFolder.Text, "Source folders for search");
+			f.ShowDialog();
+			if (f.Changed)
 			{
-				FormStateChanged |= txtFolder.Text != folderBrowserDialog1.SelectedPath;
+				FormStateChanged = true;
 				if (FormStateChanged)
 				{
-					txtFolder.Text = folderBrowserDialog1.SelectedPath;
+					txtFolder.Text = f.FoldersAsSingleLine;
 					FormStateChanged = true;
 					ObjectEnabling();
 				}
 			}
 		}
 
+		private void btnIgnoreFolders_Click(object sender, EventArgs e)
+		{
+			var f = new FolderTool(this.txtFolder.Text, "Folders exlcuded from search");
+			f.ShowDialog();
+			if (f.Changed)
+			{
+				FormStateChanged = true;
+				if (FormStateChanged)
+				{
+					txtFolder.Text = f.FoldersAsSingleLine;
+					FormStateChanged = true;
+					ObjectEnabling();
+				}
+			}
+		}
+#endif
 		private void OpenInProgram_Click(object? sender, EventArgs? e)
 		{
 			try
@@ -876,7 +914,7 @@ namespace BOG.TextFileSearch
 
 		private void ObjectEnabling()
 		{
-			btnFolder.Enabled = !Searching;
+			txtFolder.Enabled = !Searching;
 			txtIgnoreFolders.Enabled = !Searching;
 			txtFilePatterns.Enabled = !Searching;
 			txtSearchPattern.Enabled = !Searching;
@@ -1208,6 +1246,34 @@ namespace BOG.TextFileSearch
 				MessageBox.Show("The end date can not be less than the start date.", "Warning");
 				dtpAccessedEndDate.Value = dtpAccessedStartDate.Value;
 				return;
+			}
+		}
+
+		private void txtFolder_DoubleClick(object sender, EventArgs e)
+		{
+			var f = new FolderTool(this.txtFolder.Text, "Source folders for search");
+			f.ShowDialog();
+			if (f.Changed)
+			{
+				FormStateChanged = true;
+				txtFolder.Text = f.FoldersAsSingleLine;
+				ObjectEnabling();
+			}
+		}
+
+		private void txtIgnoreFolders_DoubleClick(object sender, EventArgs e)
+		{
+			var f = new FolderTool(this.txtIgnoreFolders.Text, "Folders exlcuded from search");
+			f.ShowDialog();
+			if (f.Changed)
+			{
+				FormStateChanged = true;
+				if (FormStateChanged)
+				{
+					txtIgnoreFolders.Text = f.FoldersAsSingleLine;
+					FormStateChanged = true;
+					ObjectEnabling();
+				}
 			}
 		}
 	}

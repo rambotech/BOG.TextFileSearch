@@ -11,6 +11,12 @@ Winform using .NET 9.0.
 ---
 Version History:
 
+1.0.3.0 -- 15 Mar 2026
+- Added support for multiple source folders.
+- Added support for wilcards in spource folders, e.g. c:\src\*;
+- Added form FolderTool to manage the source and ignored folder lists in a multi-line text field, one folder spec per line.
+- Added double-click on source folder list and ignore folder list to open the tool.
+
 1.0.2.0 -- 24 Feb 2026
 - Added ability to cancel search before completion.
 
