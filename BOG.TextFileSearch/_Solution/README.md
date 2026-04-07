@@ -2,14 +2,20 @@
 
 Not a fork, but inspired by JustAnOtherDev/FindIn
 
+Searches text based files for matches with regular expressions or plain text.
+
 This app adds ...
 - Error handling to skip inaccessible folders and/or files.
-- Ability to save search parameters as named searches for reuse in a dropdown.
+- Ability to clone and save search parameters as named searches for reuse from a dropdown.
 
-Winform using .NET 9.0.
+Windows Form using .NET 9.0.
 
 ---
 Version History:
+1.0.4.0 -- 6 Apr 2026
+- Add support for wildcards in the lowest folder name of a path
+- Add a new context menu option to copy all selected file matches to the clipboard as a list. the source folder list and ignore folder list to add a new folder spec with wildcards, e.g. c:\src\*\bin
+  - Intended for a files manifest to make a change.
 
 1.0.3.0 -- 15 Mar 2026
 - Added support for multiple source folders.

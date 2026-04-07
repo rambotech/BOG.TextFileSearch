@@ -1,8 +1,10 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using BOG.SwissArmyKnife;
 using BOG.TextFileSearch.Entity;
+using static System.ComponentModel.Design.ObjectSelectorEditor;
 
 namespace BOG.TextFileSearch
 {
@@ -136,6 +138,7 @@ namespace BOG.TextFileSearch
 			}
 			AddToolStripMenuItemToContextMenuStrip("Copy File Path", "Copy File Path", true, CopyFilePathToClipboard_Click);
 			AddToolStripMenuItemToContextMenuStrip("Copy Formatted", "Copy Formatted", true, CopyFormattedContentToClipboard_Click);
+			AddToolStripMenuItemToContextMenuStrip("Copy SELECTED File Paths", "Copy Selected File Paths", true, CopySelectedFilePathsToClipboard_Click);
 
 			if (File.Exists(FormStateFile))
 			{
@@ -187,23 +190,61 @@ namespace BOG.TextFileSearch
 			tabpErrors.Text = $"Error ({ErrorCount})";
 			lvwErrors.Items.Clear();
 			this.Refresh();
-			foreach (var thisFolderSet in txtFolder.Text.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+
+			// OK  ==>     c:\src.*;
+			// OK  ==>     c:\src.*;
+			// BAD ==>     c:\src.*\.git;
+
+			var DelimiterChar = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? '\\' : '/';
+
+			var folderSet = txtFolder.Text.Split([';'], StringSplitOptions.RemoveEmptyEntries);
+
+			for (var index = 0; index < folderSet.Length; index++)
 			{
-				if (Directory.Exists(thisFolderSet))
+				var thisFolder = folderSet[index];
+				while (thisFolder.EndsWith(PathDelimiter))
 				{
-					Search(thisFolderSet, txtSearchPattern.Text);
-					continue;
+					thisFolder = thisFolder.Substring(0, thisFolder.Length - 1);
 				}
-				if (thisFolderSet.IndexOfAny(new char[] { '*', '?' }) >= 0)
+				folderSet[index] = thisFolder;
+
+				var lastDelimiterIndex = thisFolder.LastIndexOf(DelimiterChar);
+				var lastWildcard = Math.Max(thisFolder.LastIndexOf('*'), thisFolder.LastIndexOf('?'));
+				if (lastWildcard >=0 && lastWildcard < lastDelimiterIndex)
 				{
-					var folderItems = Directory.GetDirectories(
-						Path.GetDirectoryName(thisFolderSet),
-						Path.GetFileName(thisFolderSet),
+					MessageBox.Show(
+						"Any wildcards in a folder path can not be before the last folder name\r\n" +
+						"\r\n" +
+						"Example:\r\n"+
+						" OK  ...     c:\\src.*\r\n" +
+						" BAD ...     c:\\src.*\\.git;",
+						"Invalid path specification",
+						MessageBoxButtons.OK,
+						MessageBoxIcon.Stop);
+					return;
+				}
+			}
+
+			for (var index = 0; index < folderSet.Length; index++)
+			{
+				var thisFolder = folderSet[index];
+				if (thisFolder.IndexOfAny(new char[] { '*', '?' }) >= 0)
+				{
+					var lastDelimiter = thisFolder.LastIndexOf(DelimiterChar);
+					var thisPath = thisFolder.Substring(0, lastDelimiter);
+					var thisFolderPattern = thisFolder.Substring(lastDelimiter+1);
+
+					var folderItems = Directory.GetDirectories(thisPath,
+						thisFolderPattern,
 						new EnumerationOptions { RecurseSubdirectories = false });
 					foreach (var thisFolderItem in folderItems)
 					{
 						Search(thisFolderItem, txtSearchPattern.Text);
 					}
+				}
+				else
+				{
+					Search(thisFolder, txtSearchPattern.Text);
 				}
 			}
 			_FolderDejaVu.Clear();
@@ -774,6 +815,18 @@ namespace BOG.TextFileSearch
 				);
 
 			Clipboard.SetText(formattedCopyContent);
+		}
+
+		private void CopySelectedFilePathsToClipboard_Click(object? sender, EventArgs e)
+		{
+			if (lvwFound.SelectedItems.Count == 0)
+				return;
+			StringBuilder sb = new();
+			foreach (ListViewItem selectedItem in lvwFound.SelectedItems)
+			{
+				sb.AppendLine(selectedItem.SubItems[0]?.Text ?? string.Empty);
+			}
+			Clipboard.SetText(sb.ToString());
 		}
 
 		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
